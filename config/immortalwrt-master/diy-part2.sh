@@ -22,13 +22,34 @@ echo "DISTRIB_SOURCECODE='immortalwrt'" >>package/base-files/files/etc/openwrt_r
 rm -rf package/luci-app-amlogic
 git clone https://github.com/ophub/luci-app-amlogic.git package/luci-app-amlogic
 
-# Add Docker support
-git clone https://github.com/luci-app/luci-app-docker.git package/luci-app-docker
-opkg update
-opkg install docker-ce docker-ce-cli containerd
+git clone https://github.com/linkease/istore.git package/istore
+git clone https://github.com/linkease/istore-ui.git package/istore-ui
+git clone https://github.com/linkease/nas-packages.git package/nas-packages
+git clone https://github.com/linkease/nas-packages-luci.git package/nas-packages-luci
 
 # Enable BBR network acceleration
 echo "net.ipv4.tcp_congestion_control=bbr" >> package/base-files/files/etc/sysctl.conf
 sysctl -p
 
+# Enable additional software packages and kernel modules
+echo "CONFIG_PACKAGE_MINIDLNA=y" >> .config
+echo "CONFIG_PACKAGE_F2FS_TOOLS=y" >> .config
+echo "CONFIG_KERNEL_F2FS_FS=y" >> .config
+echo "CONFIG_PACKAGE_SAMBA4_SERVER=y" >> .config
+echo "CONFIG_PACKAGE_SAMBA4_CLIENT=y" >> .config
+echo "CONFIG_PACKAGE_QOS=y" >> .config
+echo "CONFIG_PACKAGE_IPERF3=y" >> .config
+echo "CONFIG_PACKAGE_HTTPS_DNS_PROXY=y" >> .config
+echo "CONFIG_PACKAGE_HTOP=y" >> .config
+echo "CONFIG_KERNEL_OVERLAY_FS=y" >> .config
+echo "CONFIG_PACKAGE_firewall4-fullconenat=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-docker" =y .config
+echo "CONFIG_PACKAGE_luci-app-store=y" >> .config
+echo "CONFIG_PACKAGE_luci-compat=y" >> .config
+echo "CONFIG_PACKAGE_luci-lib-ipkg=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-fileassistant=y >> .config
+echo "CONFIG_PACKAGE_luci-lib-fs"=y >> .config
+echo "CONFIG_PACKAGE_curl"=y >> .config
+echo "CONFIG_PACKAGE_curl"=y >> .config
+echo "CONFIG_PACKAGE_wget-ssl"=y .config
 # ------------------------------- Other ends -------------------------------
