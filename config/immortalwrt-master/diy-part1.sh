@@ -14,7 +14,10 @@
 # sed -i '$a src-git lienol https://github.com/NueXini/NueXini_Packages' feeds.conf.default
 # sed -i '$a src-git lienol http://downloads.openwrt.org/releases/24.10.0/packages/aarch64_cortex-a53/packages/' feeds.conf.default
 # sed -i '$a src-git lienol https://mirrors.tuna.tsinghua.edu.cn/openwrt/releases/24.10.0/packages/aarch64_cortex-a53/packages/' feeds.conf.default
-
+echo >> feeds.conf.default
+echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
 # other
 # rm -rf package/emortal/{autosamba,ipv6-helper}
 
+./scripts/feeds update istore
+./scripts/feeds install -d y -p istore luci-app-store
