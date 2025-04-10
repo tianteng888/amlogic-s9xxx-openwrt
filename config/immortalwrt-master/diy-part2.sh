@@ -118,6 +118,8 @@ echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 echo "CONFIG_PACKAGE_libevent2=y" >> .config
 echo "CONFIG_PACKAGE_libnatpmp=y" >> .config
 echo "CONFIG_PACKAGE_strongswan-mod-openssl=n" >> .config
+echo "CONFIG_PACKAGE_luci=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
 
 # ------------------------------- Other ends -------------------------------
 ./scripts/feeds update packages
