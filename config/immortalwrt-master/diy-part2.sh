@@ -116,3 +116,9 @@ echo "CONFIG_PACKAGE_luci-app-statistics=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-tor=y" >> .config
 echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 # ------------------------------- Other ends -------------------------------
+
+
+# 更新并安装 iStore
+./scripts/feeds update istore
+./scripts/feeds install -p istore luci-compat
+./scripts/feeds install -d y -p istore luci-app-store
