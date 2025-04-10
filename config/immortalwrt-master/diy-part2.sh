@@ -120,7 +120,8 @@ echo "CONFIG_PACKAGE_libnatpmp=y" >> .config
 echo "CONFIG_PACKAGE_strongswan-mod-openssl=n" >> .config
 
 # ------------------------------- Other ends -------------------------------
-
+./scripts/feeds update packages
+./scripts/feeds install -a -f -p packages
 
 # 更新并安装 iStore
 ./scripts/feeds update istore
