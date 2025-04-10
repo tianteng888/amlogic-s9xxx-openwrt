@@ -75,7 +75,7 @@ sed -i '/CONFIG_PACKAGE_luci-app-tor/d' .config
 sed -i '/CONFIG_PACKAGE_luci-theme-argon/d' .config
 sed -i "CONFIG_PACKAGE_libevent2/d' .config
 sed -i "CONFIG_PACKAGE_libnatpmp/d' .config
-sed -i "CONFIG_IPV6/d' .config
+
 
 
 
@@ -120,8 +120,7 @@ echo "CONFIG_PACKAGE_luci-app-tor=y" >> .config
 echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 echo "CONFIG_PACKAGE_libevent2=y" >> .config
 echo "CONFIG_PACKAGE_libnatpmp=y" >> .config
-echo "CONFIG_IPV6=y" >> .config
-echo "CONFIG_NF_NAT_IPV6=y" >> .config
+
 # ------------------------------- Other ends -------------------------------
 
 
