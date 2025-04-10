@@ -47,7 +47,6 @@ sed -i '/CONFIG_PACKAGE_HTOP/d' .config
 sed -i '/CONFIG_KERNEL_OVERLAY_FS/d' .config
 sed -i '/CONFIG_PACKAGE_firewall4-fullconenat/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-docker/d' .config
-sed -i '/CONFIG_PACKAGE_luci-app-store/d' .config
 sed -i '/CONFIG_PACKAGE_luci-compat/d' .config
 sed -i '/CONFIG_PACKAGE_luci-lib-ipkg/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-fileassistant/d' .config
@@ -88,7 +87,6 @@ echo "CONFIG_PACKAGE_HTOP=y" >> .config
 echo "CONFIG_KERNEL_OVERLAY_FS=y" >> .config
 echo "CONFIG_PACKAGE_firewall4-fullconenat=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-docker=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-store=y" >> .config
 echo "CONFIG_PACKAGE_luci-compat=y" >> .config
 echo "CONFIG_PACKAGE_luci-lib-ipkg=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-fileassistant=y" >> .config
