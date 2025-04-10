@@ -26,7 +26,7 @@ add_feed "http://downloads.openwrt.org/releases/24.10.0/packages/aarch64_cortex-
 add_feed "https://mirrors.tuna.tsinghua.edu.cn/openwrt/releases/24.10.0/packages/aarch64_cortex-a53/packages/" "lienol"
 
 # 添加 iStore 官方仓库
-add_feed "https://github.com/linkease/istore"
+echo 'src-git istore https://github.com/linkease/istore.git;main' >> feeds.conf.default
 
 # 其他
 # rm -rf package/emortal/{autosamba,ipv6-helper}
