@@ -31,6 +31,4 @@ echo 'src-git istore https://github.com/linkease/istore.git;main' >> feeds.conf.
 # 其他
 # rm -rf package/emortal/{autosamba,ipv6-helper}
 rm -rf feeds/lienol/luci-app-nginx-pingos
-rm -rf package/feeds/lienol/luci-app-nginx-pingos
-./scripts/feeds clean
-./scripts/feeds update -a
+
