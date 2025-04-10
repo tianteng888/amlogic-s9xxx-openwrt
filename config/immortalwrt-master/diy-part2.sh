@@ -38,7 +38,6 @@ sysctl -p
 sed -i '/CONFIG_PACKAGE_MINIDLNA/d' .config
 sed -i '/CONFIG_PACKAGE_F2FS_TOOLS/d' .config
 sed -i '/CONFIG_KERNEL_F2FS_FS/d' .config
-sed -i '/CONFIG_PACKAGE_SAMBA4_SERVER/d' .config
 sed -i '/CONFIG_PACKAGE_SAMBA4_CLIENT/d' .config
 sed -i '/CONFIG_PACKAGE_QOS/d' .config
 sed -i '/CONFIG_PACKAGE_IPERF3/d' .config
@@ -83,7 +82,6 @@ sed -i "CONFIG_PACKAGE_libnatpmp/d' .config
 echo "CONFIG_PACKAGE_MINIDLNA=y" >> .config
 echo "CONFIG_PACKAGE_F2FS_TOOLS=y" >> .config
 echo "CONFIG_KERNEL_F2FS_FS=y" >> .config
-echo "CONFIG_PACKAGE_SAMBA4_SERVER=y" >> .config
 echo "CONFIG_PACKAGE_SAMBA4_CLIENT=y" >> .config
 echo "CONFIG_PACKAGE_QOS=y" >> .config
 echo "CONFIG_PACKAGE_IPERF3=y" >> .config
