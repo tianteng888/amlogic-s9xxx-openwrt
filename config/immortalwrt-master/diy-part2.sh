@@ -41,7 +41,6 @@ sed -i '/CONFIG_KERNEL_F2FS_FS/d' .config
 sed -i '/CONFIG_PACKAGE_SAMBA4_CLIENT/d' .config
 sed -i '/CONFIG_PACKAGE_QOS/d' .config
 sed -i '/CONFIG_PACKAGE_IPERF3/d' .config
-sed -i '/CONFIG_PACKAGE_HTTPS_DNS_PROXY/d' .config
 sed -i '/CONFIG_PACKAGE_HTOP/d' .config
 sed -i '/CONFIG_KERNEL_OVERLAY_FS/d' .config
 sed -i '/CONFIG_PACKAGE_firewall4-fullconenat/d' .config
@@ -85,7 +84,6 @@ echo "CONFIG_KERNEL_F2FS_FS=y" >> .config
 echo "CONFIG_PACKAGE_SAMBA4_CLIENT=y" >> .config
 echo "CONFIG_PACKAGE_QOS=y" >> .config
 echo "CONFIG_PACKAGE_IPERF3=y" >> .config
-echo "CONFIG_PACKAGE_HTTPS_DNS_PROXY=y" >> .config
 echo "CONFIG_PACKAGE_HTOP=y" >> .config
 echo "CONFIG_KERNEL_OVERLAY_FS=y" >> .config
 echo "CONFIG_PACKAGE_firewall4-fullconenat=y" >> .config
