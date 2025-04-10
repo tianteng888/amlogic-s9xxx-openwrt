@@ -16,6 +16,10 @@ sed -i '$a src-git lienol http://downloads.openwrt.org/releases/24.10.0/packages
 sed -i '$a src-git lienol https://mirrors.tuna.tsinghua.edu.cn/openwrt/releases/24.10.0/packages/aarch64_cortex-a53/packages/' feeds.conf.default
 echo >> feeds.conf.default
 echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+
+# 添加 iStore 官方仓库
+echo 'src-git istore https://github.com/linkease/istore.git;main' >> feeds.conf.default
+
 # other
 # rm -rf package/emortal/{autosamba,ipv6-helper}
 
