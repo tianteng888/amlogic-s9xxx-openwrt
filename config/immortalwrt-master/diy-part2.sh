@@ -73,6 +73,11 @@ sed -i '/CONFIG_PACKAGE_luci-app-softether/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-statistics/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-tor/d' .config
 sed -i '/CONFIG_PACKAGE_luci-theme-argon/d' .config
+sed -i "CONFIG_PACKAGE_libevent2/d' .config
+sed -i "CONFIG_PACKAGE_libnatpmp/d' .config
+sed -i "CONFIG_IPV6/d' .config
+
+
 
 # Add the necessary configuration lines to .config
 echo "CONFIG_PACKAGE_MINIDLNA=y" >> .config
@@ -113,6 +118,10 @@ echo "CONFIG_PACKAGE_luci-app-softether=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-statistics=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-tor=y" >> .config
 echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+echo "CONFIG_PACKAGE_libevent2=y" >> .config
+echo "CONFIG_PACKAGE_libnatpmp=y" >> .config
+echo "CONFIG_IPV6=y" >> .config
+echo "CONFIG_NF_NAT_IPV6=y" >> .config
 # ------------------------------- Other ends -------------------------------
 
 
