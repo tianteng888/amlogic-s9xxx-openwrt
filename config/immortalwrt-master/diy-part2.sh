@@ -73,6 +73,7 @@ sed -i '/CONFIG_PACKAGE_luci-app-tor/d' .config
 sed -i '/CONFIG_PACKAGE_luci-theme-argon/d' .config
 sed -i '/CONFIG_PACKAGE_libevent2/d' .config
 sed -i '/ONFIG_PACKAGE_libnatpmp/d' .config
+sed -i '/CONFIG_PACKAGE_strongswan-mod-openssl/d' .config
 
 
 
@@ -116,6 +117,7 @@ echo "CONFIG_PACKAGE_luci-app-tor=y" >> .config
 echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 echo "CONFIG_PACKAGE_libevent2=y" >> .config
 echo "CONFIG_PACKAGE_libnatpmp=y" >> .config
+echo "CONFIG_PACKAGE_strongswan-mod-openssl=n" >> .config
 
 # ------------------------------- Other ends -------------------------------
 
