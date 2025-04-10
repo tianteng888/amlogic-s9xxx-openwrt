@@ -71,8 +71,8 @@ sed -i '/CONFIG_PACKAGE_luci-app-softether/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-statistics/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-tor/d' .config
 sed -i '/CONFIG_PACKAGE_luci-theme-argon/d' .config
-sed -i "CONFIG_PACKAGE_libevent2/d' .config
-sed -i "CONFIG_PACKAGE_libnatpmp/d' .config
+sed -i '/CONFIG_PACKAGE_libevent2/d' .config
+sed -i '/ONFIG_PACKAGE_libnatpmp/d' .config
 
 
 
