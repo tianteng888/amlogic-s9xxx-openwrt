@@ -120,5 +120,4 @@ echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 
 # 更新并安装 iStore
 ./scripts/feeds update istore
-./scripts/feeds install -p istore luci-compat
 ./scripts/feeds install -d y -p istore luci-app-store
