@@ -32,6 +32,50 @@ echo "net.ipv4.tcp_congestion_control=bbr" >> package/base-files/files/etc/sysct
 sysctl -p
 
 # Enable additional software packages and kernel modules
+# ------------------------------- Other started -------------------------------
+
+# Clean up existing duplicate entries in .config
+sed -i '/CONFIG_PACKAGE_MINIDLNA/d' .config
+sed -i '/CONFIG_PACKAGE_F2FS_TOOLS/d' .config
+sed -i '/CONFIG_KERNEL_F2FS_FS/d' .config
+sed -i '/CONFIG_PACKAGE_SAMBA4_SERVER/d' .config
+sed -i '/CONFIG_PACKAGE_SAMBA4_CLIENT/d' .config
+sed -i '/CONFIG_PACKAGE_QOS/d' .config
+sed -i '/CONFIG_PACKAGE_IPERF3/d' .config
+sed -i '/CONFIG_PACKAGE_HTTPS_DNS_PROXY/d' .config
+sed -i '/CONFIG_PACKAGE_HTOP/d' .config
+sed -i '/CONFIG_KERNEL_OVERLAY_FS/d' .config
+sed -i '/CONFIG_PACKAGE_firewall4-fullconenat/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-docker/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-store/d' .config
+sed -i '/CONFIG_PACKAGE_luci-compat/d' .config
+sed -i '/CONFIG_PACKAGE_luci-lib-ipkg/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-fileassistant/d' .config
+sed -i '/CONFIG_PACKAGE_luci-lib-fs/d' .config
+sed -i '/CONFIG_PACKAGE_curl/d' .config
+sed -i '/CONFIG_PACKAGE_wget-ssl/d' .config
+sed -i '/CONFIG_PACKAGE_attendedsysupgrade-common/d' .config
+sed -i '/CONFIG_PACKAGE_autocore/d' .config
+sed -i '/CONFIG_PACKAGE_automount/d' .config
+sed -i '/CONFIG_PACKAGE_kmod-phy-realtek/d' .config
+sed -i '/CONFIG_PACKAGE_kmod-siit/d' .config
+sed -i '/CONFIG_PACKAGE_libltdl/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-acme/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-adblock-fast/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-advanced-reboot/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-attendedsysupgrade/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-commands/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-filebrowser/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-irqbalance/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-openclash/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-ser2net/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-siitwizard/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-softether/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-statistics/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-tor/d' .config
+sed -i '/CONFIG_PACKAGE_luci-theme-argon/d' .config
+
+# Add the necessary configuration lines to .config
 echo "CONFIG_PACKAGE_MINIDLNA=y" >> .config
 echo "CONFIG_PACKAGE_F2FS_TOOLS=y" >> .config
 echo "CONFIG_KERNEL_F2FS_FS=y" >> .config
@@ -43,13 +87,32 @@ echo "CONFIG_PACKAGE_HTTPS_DNS_PROXY=y" >> .config
 echo "CONFIG_PACKAGE_HTOP=y" >> .config
 echo "CONFIG_KERNEL_OVERLAY_FS=y" >> .config
 echo "CONFIG_PACKAGE_firewall4-fullconenat=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-docker" =y .config
+echo "CONFIG_PACKAGE_luci-app-docker=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-store=y" >> .config
 echo "CONFIG_PACKAGE_luci-compat=y" >> .config
 echo "CONFIG_PACKAGE_luci-lib-ipkg=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-fileassistant=y >> .config
-echo "CONFIG_PACKAGE_luci-lib-fs"=y >> .config
-echo "CONFIG_PACKAGE_curl"=y >> .config
-echo "CONFIG_PACKAGE_curl"=y >> .config
-echo "CONFIG_PACKAGE_wget-ssl"=y .config
+echo "CONFIG_PACKAGE_luci-app-fileassistant=y" >> .config
+echo "CONFIG_PACKAGE_luci-lib-fs=y" >> .config
+echo "CONFIG_PACKAGE_curl=y" >> .config
+echo "CONFIG_PACKAGE_wget-ssl=y" >> .config
+echo "CONFIG_PACKAGE_attendedsysupgrade-common=y" >> .config
+echo "CONFIG_PACKAGE_autocore=y" >> .config
+echo "CONFIG_PACKAGE_automount=y" >> .config
+echo "CONFIG_PACKAGE_kmod-phy-realtek=y" >> .config
+echo "CONFIG_PACKAGE_kmod-siit=y" >> .config
+echo "CONFIG_PACKAGE_libltdl=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-acme=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-adblock-fast=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-advanced-reboot=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-attendedsysupgrade=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-commands=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-filebrowser=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-irqbalance=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-ser2net=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-siitwizard=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-softether=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-statistics=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-tor=y" >> .config
+echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
 # ------------------------------- Other ends -------------------------------
