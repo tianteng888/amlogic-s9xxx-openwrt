@@ -23,5 +23,4 @@ echo 'src-git istore https://github.com/linkease/istore.git;main' >> feeds.conf.
 # other
 # rm -rf package/emortal/{autosamba,ipv6-helper}
 
-./scripts/feeds update istore
-./scripts/feeds install -d y -p istore luci-app-store
+
