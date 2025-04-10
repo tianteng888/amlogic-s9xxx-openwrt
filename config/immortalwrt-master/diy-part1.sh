@@ -17,7 +17,12 @@ add_feed() {
 }
 
 # 添加 lienol 源
-add_feed "https://github.com/Lienol/openwrt-package" "lienol"
+# add_feed "https://github.com/Lienol/openwrt-package" "lienol"
+./scripts/feeds update -a
+./scripts/feeds install -a
+
+
+
 add_feed "https://github.com/kenzok8/openwrt-packages" "lienol"
 add_feed "https://github.com/zwrt/openwrt-packages" "lienol"
 add_feed "https://github.com/openwrt/packages" "lienol"
@@ -31,4 +36,8 @@ echo 'src-git istore https://github.com/linkease/istore.git;main' >> feeds.conf.
 # 其他
 # rm -rf package/emortal/{autosamba,ipv6-helper}
 rm -rf feeds/lienol/luci-app-nginx-pingos
+rm -rf package/feeds/lienol/luci-app-nginx-pingos
+./scripts/feeds clean
+./scripts/feeds update -a
+
 
