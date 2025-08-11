@@ -102,11 +102,11 @@ jobs:
           sudo swapoff -a
           sudo rm -f /swapfile /mnt/swapfile
 
-          # 启用universe软件源（解决opkg-utils找不到的问题）
-          sudo add-apt-repository universe -y || true
+          # 关键修复：确保universe源正确添加并立即更新
+          sudo add-apt-repository universe -y
+          sudo apt-get update -y --fix-missing  # 添加源后立即更新，确保能找到opkg-utils
 
           # 安装完整依赖（优先确保opkg-utils可用）
-          sudo -E apt-get -y update --fix-missing  # 强制刷新源并修复可能的缓存问题
           sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
           # 优先单独安装opkg-utils，确保其成功
           sudo -E apt-get -y install opkg-utils
