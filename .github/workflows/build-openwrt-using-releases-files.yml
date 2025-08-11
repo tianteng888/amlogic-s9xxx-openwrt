@@ -1,5 +1,5 @@
 #=====================================================================================
-# 彻底移除 opkg-utils 依赖，仅使用 rootfs 内置 opkg
+# 修复语法错误版：仅使用 RootFS 内置 opkg 工具
 #=====================================================================================
 
 name: Build ImmortalWrt 24.10.2 for s905l3a
@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: 基础环境准备
         run: |
-          # 仅保留必要工具
+          # 仅安装必要工具，避免依赖冲突
           sudo apt-get update -y
           sudo apt-get install -y curl wget tar gzip lz4 cpio kmod
           sudo apt-get clean
@@ -47,9 +47,13 @@ jobs:
           mkdir -p openwrt/output
           cd openwrt/output
 
-          # 下载 RootFS
+          # 下载 RootFS 并解压
           wget -q --show-progress "${ROOTFS_URL}" -O rootfs.tar.gz
           mkdir rootfs && tar -zxf rootfs.tar.gz -C rootfs
 
-          # 修改软件源（使用内置 opkg）
-          cat > rootfs/etc/opkg/distfeeds.conf <<
+          # 修改软件源（使用 RootFS 内置 opkg）
+          cat > rootfs/etc/opkg/distfeeds.conf <<EOF
+          src/gz immortalwrt_core ${PACKAGES_REPO}core
+          src/gz immortalwrt_base ${PACKAGES_REPO}base
+          src/gz immortalwrt_luci ${PACKAGES_REPO}luci
+          src/gz immortalwrt_packages ${PACKAGES_REPO}packages
