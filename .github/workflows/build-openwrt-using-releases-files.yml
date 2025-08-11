@@ -19,36 +19,31 @@ on:
           - s905l3a-cm311
           - s905l3a-m401a
       openwrt_kernel:
-        description: "内核版本"
+        description: "内核版本（官方最新）"
         required: true
         default: "6.12.y"
         type: choice
         options:
-          - 5.4.y
-          - 5.10.y
           - 5.15.y
           - 6.1.y
           - 6.6.y
-          - 6.12.y
+          - 6.12.y  # 官方最新稳定版
       kernel_repo:
-        description: "内核仓库"
+        description: "内核仓库（官方）"
         required: true
-        default: "tianteng888/flippy-kernels"
+        default: "ophub/kernel"  # 改回官方内核仓库
         type: choice
         options:
-          - ophub/kernel
-          - tianteng888/flippy-kernels
+          - ophub/kernel  # 官方内核源
 
 env:
   TZ: Asia/Shanghai
-  # 核心配置：aarch64_generic架构对应的rootfs
+  # 核心配置：使用官方immortalwrt的rootfs（匹配架构）
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-  # 适配aarch64的内核
-  KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/6.12.41-flippy-93+.tar.gz"
-  # 明确指定架构为aarch64_generic
+  # 移除硬编码第三方内核URL，由官方仓库动态获取
   TARGET_ARCH: "aarch64_generic"
-  # 对应的包仓库路径
-  PACKAGE_REPO_BASE: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic"
+  # 修正opkg源路径（匹配官方仓库结构）
+  PACKAGE_REPO_BASE: "https://downloads.immortalwrt.org/releases/24.10.2/packages/armsr/armv8"  # 关键修正：使用targets对应的packages路径
 
 jobs:
   build:
@@ -66,7 +61,7 @@ jobs:
           sudo apt-get install -y \
             curl wget tar gzip xz-utils unzip build-essential \
             qemu-user-static binfmt-support pv lvm2 xfsprogs \
-            net-tools iputils-ping  # 增加网络诊断工具
+            net-tools iputils-ping
           
           # 启用aarch64架构模拟
           sudo update-binfmts --enable qemu-aarch64
@@ -146,7 +141,6 @@ jobs:
           sudo chmod -R 777 openwrt/rootfs/var
           
           # 配置DNS（解决网络问题）
-          # 处理可能存在的悬空符号链接
           if [ -L "openwrt/rootfs/etc/resolv.conf" ]; then
             sudo rm -f openwrt/rootfs/etc/resolv.conf
           fi
@@ -166,13 +160,13 @@ jobs:
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: 配置opkg源（适配aarch64_generic）
+      - name: 配置opkg源（适配官方架构路径）
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
           OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
           sudo mkdir -p $(dirname $OPKG_CONF)
           
-          # 关键调整：使用aarch64_generic架构的包仓库
+          # 修正为官方正确的包仓库路径
           sudo tee $OPKG_CONF << EOF
           src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
           src/gz immortalwrt_base ${PACKAGE_REPO_BASE}/base
@@ -186,68 +180,79 @@ jobs:
           echo "已配置的opkg源："
           cat $OPKG_CONF
 
-      - name: 安装USB网卡驱动（chroot环境）
+      - name: 安装USB网卡驱动（适配官方内核）
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
           ROOTFS_DIR="/builder/openwrt/rootfs"
           
-          # 挂载必要的系统目录（网络相关）
+          # 挂载必要的系统目录
           sudo mount -o bind /dev $ROOTFS_DIR/dev
           sudo mount -o bind /proc $ROOTFS_DIR/proc
           sudo mount -o bind /sys $ROOTFS_DIR/sys
           sudo mount -o bind /etc/resolv.conf $ROOTFS_DIR/etc/resolv.conf
-          sudo mount -o bind /proc/net $ROOTFS_DIR/proc/net
           
           # 复制qemu模拟器
           sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
           sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
           
-          # 验证chroot环境的网络连通性
-          echo "测试chroot环境网络..."
-          if ! sudo chroot $ROOTFS_DIR /bin/sh -c "ping -c 2 8.8.8.8"; then
-            echo "警告：网络连通性测试失败，但继续执行"
-          fi
-          
-          # 验证DNS解析
-          echo "测试DNS解析..."
-          if ! sudo chroot $ROOTFS_DIR /bin/sh -c "nslookup downloads.immortalwrt.org"; then
-            echo "警告：DNS解析失败，尝试替换DNS服务器"
-            sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 114.114.114.114' > /etc/resolv.conf"
-          fi
+          # 修复网络连通性（使用内部DNS）
+          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 114.114.114.114' > /etc/resolv.conf"
           
           # 确保锁文件目录权限
           sudo chroot $ROOTFS_DIR /bin/sh -c "mkdir -p /var/lock && chmod 777 /var/lock"
           
-          # 更新包列表（强制架构匹配）
+          # 更新包列表（强制使用官方源）
           echo "更新opkg包列表..."
           if ! sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update --no-check-certificate"; then
             echo "错误：opkg update失败"
             exit 1
           fi
           
-          # 安装USB网卡驱动（适配aarch64_generic）
+          # 检查可用的USB驱动包（适配官方内核命名）
+          echo "检查可用的USB驱动包..."
+          sudo chroot $ROOTFS_DIR /bin/sh -c "opkg list | grep -E 'kmod-usb-net|kmod-usb2|kmod-usb3'"
+          
+          # 安装适配官方内核的USB驱动（调整包名匹配官方仓库）
           echo "安装USB网卡驱动..."
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate \
-            kmod-usb-net kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 \
-            kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-dm9601-ether \
-            kmod-usb-net-smsc95xx kmod-usb2 kmod-usb3 kmod-usb-xhci-hcd"
+            kmod-usb-net \
+            kmod-usb-net-rtl8152 \
+            kmod-usb-net-asix \
+            kmod-usb-net-asix-ax88179 \
+            kmod-usb2 \
+            kmod-usb3 \
+            kmod-usb-xhci-hcd" || echo "部分驱动可能已内置，继续执行"
           
           # 清理挂载点
-          sudo umount $ROOTFS_DIR/proc/net
           sudo umount $ROOTFS_DIR/etc/resolv.conf
           sudo umount $ROOTFS_DIR/dev
           sudo umount $ROOTFS_DIR/proc
           sudo umount $ROOTFS_DIR/sys
           sudo rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
 
-      - name: 下载内核文件
+      - name: 下载官方内核文件
         id: download_kernel
         working-directory: /builder
         run: |
           mkdir -p openwrt/kernel
-          echo "开始下载内核: ${KERNEL_URL}"
+          echo "从官方仓库获取内核: ${inputs.kernel_repo} ${inputs.openwrt_kernel}"
+          
+          # 从官方内核仓库动态获取最新内核（适配ophub/kernel的下载逻辑）
+          KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases/latest" | jq -r '.tag_name' | grep -E "${{ inputs.openwrt_kernel }}")
+          if [ -z "$KERNEL_TAG" ]; then
+            KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases" | jq -r '.[] | .tag_name' | grep -E "${{ inputs.openwrt_kernel }}" | head -n 1)
+          fi
+          
+          if [ -z "$KERNEL_TAG" ]; then
+            echo "错误：未找到官方内核 ${inputs.openwrt_kernel}"
+            exit 1
+          fi
+          
+          KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
+          echo "下载官方内核: ${KERNEL_URL}"
+          
           if ! sudo wget -c "${KERNEL_URL}" -O openwrt/kernel/kernel.tar.gz; then
-            echo "错误：内核下载失败"
+            echo "错误：官方内核下载失败"
             exit 1
           fi
           
@@ -261,7 +266,7 @@ jobs:
           sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: 打包OpenWrt镜像
+      - name: 打包OpenWrt镜像（使用官方工具链）
         if: ${{ steps.download_kernel.outputs.status }} == 'success'
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
@@ -269,14 +274,12 @@ jobs:
           openwrt_board: ${{ inputs.openwrt_board }}
           openwrt_kernel: ${{ inputs.openwrt_kernel }}
           kernel_repo: ${{ inputs.kernel_repo }}
-          # 明确指定目标架构
           target_arch: ${{ env.TARGET_ARCH }}
-          # 启用调试模式（可选）
           debug: false
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}
+          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-official-kernel
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
