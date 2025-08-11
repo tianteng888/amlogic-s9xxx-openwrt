@@ -123,7 +123,7 @@ jobs:
           sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
 
           # 安装编译工具（为源码安装做准备）
-          sudo apt-get install -y build-essential git autoconf automake libtool
+          sudo apt-get install -y build-essential git autoconf automake libtool pkg-config
 
           # 尝试通过apt安装opkg-utils
           echo "Trying to install opkg-utils via apt..."
@@ -131,9 +131,12 @@ jobs:
             echo "opkg-utils installed successfully via apt"
           else
             echo "Failed to install opkg-utils via apt, trying source installation..."
-            # 从源码编译安装opkg-utils
-            git clone https://git.yoctoproject.org/git/opkg-utils
+            # 修复：使用OpenWrt官方opkg-utils仓库（包含正确的autogen.sh）
+            git clone https://git.openwrt.org/project/opkg-utils.git
             cd opkg-utils
+            # 确保autogen.sh可执行
+            chmod +x autogen.sh
+            # 运行构建脚本
             ./autogen.sh
             ./configure
             make
