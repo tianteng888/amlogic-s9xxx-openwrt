@@ -146,6 +146,10 @@ jobs:
           sudo chmod -R 777 openwrt/rootfs/var
           
           # 配置DNS（解决网络问题）
+          # 处理可能存在的悬空符号链接
+          if [ -L "openwrt/rootfs/etc/resolv.conf" ]; then
+            sudo rm -f openwrt/rootfs/etc/resolv.conf
+          fi
           sudo cp /etc/resolv.conf openwrt/rootfs/etc/resolv.conf
           sudo chmod 777 openwrt/rootfs/etc/resolv.conf
           
@@ -276,4 +280,3 @@ jobs:
           name: openwrt-s905l3a-${{ env.TARGET_ARCH }}
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
-    
