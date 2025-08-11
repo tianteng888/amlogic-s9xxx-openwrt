@@ -41,7 +41,7 @@ env:
   # 核心配置：使用官方immortalwrt的rootfs（匹配targets路径）
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
   TARGET_ARCH: "aarch64_generic"
-  # 关键修正：应用包仓库路径为aarch64_generic（与你确认的路径一致）
+  # 关键修正：应用包仓库路径为aarch64_generic（与确认的路径一致）
   PACKAGE_REPO_BASE: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic"
 
 jobs:
@@ -159,90 +159,50 @@ jobs:
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: 配置opkg源（适配官方架构路径）
-        if: ${{ steps.download_rootfs.outputs.status }} == 'success'
-        run: |
-          OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
-          sudo mkdir -p $(dirname $OPKG_CONF)
-          
-          # 修正为官方正确的包仓库路径（核心包用targets路径，应用包用aarch64_generic路径）
-          sudo tee $OPKG_CONF << EOF
-          # 系统核心包（对应targets路径）
-          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
-          # 应用包（对应aarch64_generic路径，与你确认的地址一致）
-          src/gz immortalwrt_base ${PACKAGE_REPO_BASE}/base
-          src/gz immortalwrt_luci ${PACKAGE_REPO_BASE}/luci
-          src/gz immortalwrt_packages ${PACKAGE_REPO_BASE}/packages
-          src/gz immortalwrt_routing ${PACKAGE_REPO_BASE}/routing
-          src/gz immortalwrt_telephony ${PACKAGE_REPO_BASE}/telephony
-          EOF
-          
-          # 验证源配置
-          echo "已配置的opkg源："
-          cat $OPKG_CONF
-
-      - name: 安装USB网卡驱动（适配官方内核）
+      - name: 检测rootfs中的晶晨宝盒和自带驱动
+        id: check_rootfs
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
           ROOTFS_DIR="/builder/openwrt/rootfs"
+          echo "===== 检测rootfs中的晶晨宝盒 ====="
           
-          # 挂载必要的系统目录（补充dev/pts修复网络交互）
-          sudo mount -o bind /dev $ROOTFS_DIR/dev
-          sudo mount -o bind /dev/pts $ROOTFS_DIR/dev/pts
-          sudo mount -o bind /proc $ROOTFS_DIR/proc
-          sudo mount -o bind /sys $ROOTFS_DIR/sys
-          sudo mount -o bind /etc/resolv.conf $ROOTFS_DIR/etc/resolv.conf
+          # 晶晨宝盒核心文件列表
+          amlogic_files=(
+            "/usr/sbin/amlogic-service"
+            "/etc/config/amlogic"
+            "/usr/bin/openwrt-install-amlogic"
+          )
+          amlogic_exists=true
+          for file in "${amlogic_files[@]}"; do
+            if [ ! -f "${ROOTFS_DIR}${file}" ] && [ ! -d "${ROOTFS_DIR}${file}" ]; then
+              echo "缺失晶晨宝盒组件: ${file}"
+              amlogic_exists=false
+            fi
+          done
           
-          # 复制qemu模拟器
-          sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
-          sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+          echo -e "\n===== 检测rootfs中自带的USB驱动 ====="
+          # 核心USB驱动文件
+          driver_files=(
+            "/lib/modules/*/kernel/drivers/usb/net/kmod-usb-net.ko"
+            "/lib/modules/*/kernel/drivers/usb/core/kmod-usb2.ko"
+            "/lib/modules/*/kernel/drivers/usb/core/kmod-usb3.ko"
+          )
+          driver_exists=true
+          for pattern in "${driver_files[@]}"; do
+            if ! ls "${ROOTFS_DIR}${pattern}" 1>/dev/null 2>&1; then
+              echo "缺失自带驱动: ${pattern}"
+              driver_exists=false
+            fi
+          done
           
-          # 修复网络连通性（使用可靠DNS）
-          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
-          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 114.114.114.114' >> /etc/resolv.conf"
-          
-          # 确保锁文件目录权限
-          sudo chroot $ROOTFS_DIR /bin/sh -c "mkdir -p /var/lock && chmod 777 /var/lock"
-          
-          # 测试网络连通性
-          echo "测试网络连通性..."
-          if ! sudo chroot $ROOTFS_DIR /bin/sh -c "ping -c 3 downloads.immortalwrt.org"; then
-            echo "错误：网络不通，无法访问官方源"
-            exit 1
+          # 输出检测结果
+          if [ "$amlogic_exists" = true ] && [ "$driver_exists" = true ]; then
+            echo "rootfs检测通过：包含晶晨宝盒和必要驱动"
+            echo "rootfs_status=success" >> ${GITHUB_OUTPUT}
+          else
+            echo "rootfs检测警告：缺失部分组件（将尝试后续安装）"
+            echo "rootfs_status=partial" >> ${GITHUB_OUTPUT}
           fi
-          
-          # 更新包列表（强制使用官方源）
-          echo "更新opkg包列表..."
-          if ! sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update --no-check-certificate"; then
-            echo "错误：opkg update失败"
-            # 输出源配置供调试
-            echo "当前opkg源配置："
-            sudo cat $ROOTFS_DIR/etc/opkg/distfeeds.conf
-            exit 1
-          fi
-          
-          # 检查可用的USB驱动包（适配官方内核命名）
-          echo "检查可用的USB驱动包..."
-          sudo chroot $ROOTFS_DIR /bin/sh -c "opkg list | grep -E 'kmod-usb-net|kmod-usb2|kmod-usb3'"
-          
-          # 安装适配官方内核的USB驱动
-          echo "安装USB网卡驱动..."
-          sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate \
-            kmod-usb-net \
-            kmod-usb-net-rtl8152 \
-            kmod-usb-net-asix \
-            kmod-usb-net-asix-ax88179 \
-            kmod-usb2 \
-            kmod-usb3 \
-            kmod-usb-xhci-hcd" || echo "部分驱动可能已内置，继续执行"
-          
-          # 清理挂载点
-          sudo umount $ROOTFS_DIR/etc/resolv.conf
-          sudo umount $ROOTFS_DIR/dev/pts
-          sudo umount $ROOTFS_DIR/dev
-          sudo umount $ROOTFS_DIR/proc
-          sudo umount $ROOTFS_DIR/sys
-          sudo rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
 
       - name: 下载官方内核文件
         id: download_kernel
@@ -280,8 +240,164 @@ jobs:
           sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: 打包OpenWrt镜像（使用官方工具链）
+      - name: 检测内核中的驱动支持
+        id: check_kernel
         if: ${{ steps.download_kernel.outputs.status }} == 'success'
+        run: |
+          KERNEL_DIR="/builder/openwrt/kernel"
+          echo "===== 检测内核中的驱动支持 ====="
+          
+          # 检查内核模块中的USB驱动
+          kernel_drivers=(
+            "usb-net.ko"
+            "usb2.ko"
+            "usb3.ko"
+            "xhci-hcd.ko"
+          )
+          kernel_support=true
+          for driver in "${kernel_drivers[@]}"; do
+            if ! find "${KERNEL_DIR}" -name "*${driver}" 1>/dev/null 2>&1; then
+              echo "内核缺失驱动: ${driver}"
+              kernel_support=false
+            fi
+          done
+          
+          if [ "$kernel_support" = true ]; then
+            echo "内核检测通过：包含必要驱动"
+            echo "kernel_status=success" >> ${GITHUB_OUTPUT}
+          else
+            echo "错误：内核缺失关键驱动，无法继续"
+            echo "kernel_status=failure" >> ${GITHUB_OUTPUT}
+            exit 1
+          fi
+
+      - name: 配置opkg源（适配官方架构路径）
+        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
+        run: |
+          OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
+          sudo mkdir -p $(dirname $OPKG_CONF)
+          
+          # 修正为官方正确的包仓库路径
+          sudo tee $OPKG_CONF << EOF
+          # 系统核心包（对应targets路径）
+          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
+          # 应用包（对应aarch64_generic路径）
+          src/gz immortalwrt_base ${PACKAGE_REPO_BASE}/base
+          src/gz immortalwrt_luci ${PACKAGE_REPO_BASE}/luci
+          src/gz immortalwrt_packages ${PACKAGE_REPO_BASE}/packages
+          src/gz immortalwrt_routing ${PACKAGE_REPO_BASE}/routing
+          src/gz immortalwrt_telephony ${PACKAGE_REPO_BASE}/telephony
+          EOF
+          
+          # 验证源配置
+          echo "已配置的opkg源："
+          cat $OPKG_CONF
+
+      - name: 安装USB网卡驱动（适配官方内核）
+        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
+        run: |
+          ROOTFS_DIR="/builder/openwrt/rootfs"
+          
+          # 挂载必要的系统目录
+          sudo mount -o bind /dev $ROOTFS_DIR/dev
+          sudo mount -o bind /dev/pts $ROOTFS_DIR/dev/pts
+          sudo mount -o bind /proc $ROOTFS_DIR/proc
+          sudo mount -o bind /sys $ROOTFS_DIR/sys
+          sudo mount -o bind /etc/resolv.conf $ROOTFS_DIR/etc/resolv.conf
+          
+          # 复制qemu模拟器
+          sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
+          sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+          
+          # 增强网络诊断与修复
+          echo "===== 网络连通性修复 ====="
+          # 强制替换DNS配置
+          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
+          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 114.114.114.114' >> /etc/resolv.conf"
+          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 208.67.222.222' >> /etc/resolv.conf"  # 增加备用DNS
+          
+          # 检查网络接口与路由
+          echo "网络接口状态："
+          sudo chroot $ROOTFS_DIR /bin/sh -c "ip addr"
+          echo "路由配置："
+          sudo chroot $ROOTFS_DIR /bin/sh -c "ip route"
+          sudo chroot $ROOTFS_DIR /bin/sh -c "ip link set lo up"  # 确保回环接口启用
+          
+          # 多目标网络测试（先IP后域名，支持ping和curl）
+          test_connectivity() {
+            local target=$1
+            echo "测试连接 $target..."
+            if sudo chroot $ROOTFS_DIR /bin/sh -c "ping -c 2 $target >/dev/null 2>&1"; then
+              return 0
+            elif sudo chroot $ROOTFS_DIR /bin/sh -c "curl -Is --connect-timeout 5 $target >/dev/null 2>&1"; then
+              return 0
+            else
+              return 1
+            fi
+          }
+          
+          # 测试序列：先DNS服务器，再官方源
+          targets=("8.8.8.8" "114.114.114.114" "downloads.immortalwrt.org" "https://downloads.immortalwrt.org")
+          connectivity_ok=false
+          for target in "${targets[@]}"; do
+            if test_connectivity "$target"; then
+              echo "$target 连接成功"
+              connectivity_ok=true
+              break
+            fi
+          done
+          
+          if [ "$connectivity_ok" = false ]; then
+            echo "错误：所有网络测试失败，无法访问外部网络"
+            exit 1
+          fi
+          
+          # 确保锁文件目录权限
+          sudo chroot $ROOTFS_DIR /bin/sh -c "mkdir -p /var/lock && chmod 777 /var/lock"
+          
+          # 更新包列表（带重试机制）
+          echo "更新opkg包列表..."
+          retry=3
+          while [ $retry -gt 0 ]; do
+            if sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update --no-check-certificate"; then
+              break
+            fi
+            retry=$((retry - 1))
+            echo "opkg update失败，剩余重试次数：$retry"
+            sleep 5
+          done
+          if [ $retry -eq 0 ]; then
+            echo "错误：opkg update最终失败"
+            echo "当前opkg源配置："
+            sudo cat $ROOTFS_DIR/etc/opkg/distfeeds.conf
+            exit 1
+          fi
+          
+          # 仅在rootfs检测不完整时安装驱动
+          if [ "${{ steps.check_rootfs.outputs.rootfs_status }}" = "partial" ]; then
+            echo "安装USB网卡驱动（补充缺失组件）..."
+            sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate \
+              kmod-usb-net \
+              kmod-usb-net-rtl8152 \
+              kmod-usb-net-asix \
+              kmod-usb-net-asix-ax88179 \
+              kmod-usb2 \
+              kmod-usb3 \
+              kmod-usb-xhci-hcd" || echo "部分驱动可能已内置，继续执行"
+          else
+            echo "rootfs已包含必要驱动，跳过安装"
+          fi
+          
+          # 清理挂载点
+          sudo umount $ROOTFS_DIR/etc/resolv.conf
+          sudo umount $ROOTFS_DIR/dev/pts
+          sudo umount $ROOTFS_DIR/dev
+          sudo umount $ROOTFS_DIR/proc
+          sudo umount $ROOTFS_DIR/sys
+          sudo rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+
+      - name: 打包OpenWrt镜像（使用官方工具链）
+        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
           openwrt_path: /builder/openwrt/rootfs
