@@ -1,6 +1,6 @@
 #=====================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build OpenWrt using releases files (fixed chroot permission)
+# Description: Build OpenWrt using releases files (fixed XFS mount error)
 #=====================================================================================
 
 name: Build OpenWrt using releases files
@@ -78,34 +78,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialization environment
+      - name: Initialization environment (with XFS support)
         id: init
         run: |
           sudo apt-get update -y
+          # 安装XFS文件系统工具（关键修复）
           sudo apt-get install -y curl wget tar gzip xz-utils unzip build-essential \
-            qemu-user-static binfmt-support pv lvm2
-          # 启用binfmt支持（关键：确保qemu能模拟aarch64）
+            qemu-user-static binfmt-support pv lvm2 xfsprogs
           sudo update-binfmts --enable qemu-aarch64
           sudo systemctl daemon-reload
           sudo timedatectl set-timezone "${TZ}"
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Create simulated disk (with proper permissions)
+      - name: Create simulated disk (fixed XFS mount)
         run: |
-          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 1)
-          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 4)
+          # 计算可用空间（优化正则表达式，只保留数字）
+          mnt_size=$(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
+          root_size=$(df -h / | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
+          # 确保空间计算不为空
+          mnt_size=$(( mnt_size > 0 ? mnt_size - 1 : 10 ))  # 至少保留10G
+          root_size=$(( root_size > 0 ? root_size - 4 : 20 ))
+          
+          # 创建磁盘镜像
           sudo truncate -s "${mnt_size}"G /mnt/mnt.img
           sudo truncate -s "${root_size}"G /root.img
+          
+          # 关联到loop设备
           sudo losetup /dev/loop6 /mnt/mnt.img
           sudo losetup /dev/loop7 /root.img
+          
+          # 创建LVM逻辑卷
           sudo pvcreate /dev/loop6 /dev/loop7
           sudo vgcreate github /dev/loop6 /dev/loop7
           sudo lvcreate -n runner -l 100%FREE github
-          sudo mkfs.xfs /dev/github/runner
+          
+          # 格式化XFS文件系统（添加兼容性选项）
+          sudo mkfs.xfs -f -i size=512 /dev/github/runner
+          
+          # 创建挂载点并挂载（移除不兼容的uid/gid选项）
           sudo mkdir -p /builder
-          # 挂载时添加权限选项，确保root可访问
-          sudo mount -o defaults,uid=0,gid=0 /dev/github/runner /builder
-          sudo chmod 755 /builder  # 确保目录权限正确
+          # XFS不支持uid/gid挂载选项，使用默认选项
+          sudo mount -o defaults /dev/github/runner /builder
+          # 修复目录权限
+          sudo chmod 777 /builder
 
       - name: Download & verify rootfs
         id: download_rootfs
@@ -118,7 +133,6 @@ jobs:
             echo "rootfs下载失败" && exit 1
           fi
           
-          # 用root权限解压，确保文件所有者正确
           sudo tar -zxf openwrt/rootfs.tar.gz -C openwrt/rootfs
           rootfs_contents=$(ls openwrt/rootfs)
           if [ $(echo "$rootfs_contents" | wc -l) -eq 1 ] && [ -d "openwrt/rootfs/$rootfs_contents" ]; then
@@ -126,7 +140,6 @@ jobs:
             sudo rmdir openwrt/rootfs/$rootfs_contents
           fi
           
-          # 查找opkg并确保权限
           OPKG_PATH=$(sudo find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
           if [ -z "$OPKG_PATH" ]; then
             echo "错误：未找到opkg"
@@ -134,7 +147,7 @@ jobs:
             sudo ls -la openwrt/rootfs/bin
             exit 1
           fi
-          sudo chmod +x "$OPKG_PATH"  # 确保opkg可执行
+          sudo chmod +x "$OPKG_PATH"
           
           echo "找到opkg：$OPKG_PATH"
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
@@ -154,26 +167,22 @@ jobs:
           src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/telephony
           EOF
 
-      - name: Install USB Ethernet drivers (fixed chroot permission)
+      - name: Install USB Ethernet drivers
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
           ROOTFS_DIR="/builder/openwrt/rootfs"
-          # 挂载必要系统目录（确保以root执行）
           sudo mount -o bind /dev $ROOTFS_DIR/dev
           sudo mount -o bind /proc $ROOTFS_DIR/proc
           sudo mount -o bind /sys $ROOTFS_DIR/sys
-          # 复制qemu模拟器并赋予执行权限
           sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
           sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
           
-          # 关键：用sudo执行chroot，确保权限
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update"
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install \
             kmod-usb-net kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 \
             kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-dm9601-ether \
             kmod-usb-net-smsc95xx kmod-usb2 kmod-usb3 kmod-usb-xhci-hcd"
           
-          # 清理挂载（防止占用）
           sudo umount $ROOTFS_DIR/dev
           sudo umount $ROOTFS_DIR/proc
           sudo umount $ROOTFS_DIR/sys
