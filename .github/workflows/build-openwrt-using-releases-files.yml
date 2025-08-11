@@ -1,9 +1,9 @@
 #=====================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build OpenWrt using releases files
+# Description: Build ImmortalWrt 24.10.2 for s905l3a with dual kernels
 #=====================================================================================
 
-name: Build OpenWrt using releases files
+name: Build ImmortalWrt 24.10.2 for s905l3a
 
 on:
   repository_dispatch:
@@ -12,215 +12,45 @@ on:
       source_branch:
         description: "Select the source branch"
         required: false
-        default: "official"
+        default: "immortalwrt"
         type: choice
         options:
-          - official
-          - lede
-          - immortalwrt
+          - immortalwrt  # 仅保留immortalwrt源码
       openwrt_board:
         description: "Select device board"
         required: false
-        default: "all"
+        default: "s905l3a"
         type: choice
         options:
-          - all
-          - top50
-          - rest50
-          - a311d-oes_s905d_s905x3_s922x-ct2000_wxy-oect
-          - a311d
-          - a311d-oes
-          - alark35-3500
-          - anas3035
-          - beikeyun
-          - chainedbox
-          - crrc
-          - dc-a588
-          - dg3399
-          - dg-tn3568
-          - dlfr100
-          - e20c
-          - e25
-          - eaidk-610
-          - emb3531
-          - fine3399
-          - firefly-rk3399
-          - fmx1-pro
-          - jp-tvbox
-          - h28k
-          - h66k
-          - h68k
-          - h69k
-          - h88k
-          - h88k-v3
-          - h96-max-m2
-          - hs530r
-          - hugsun-x99
-          - ipc-r
-          - king3399
-          - kylin3399
-          - lckfb-tspi
-          - leez
-          - lx-r3s
-          - mrkaio-m68s
-          - nanopc-t6
-          - nanopi-r5c
-          - nanopi-r5s
-          - orangepi-5-plus
-          - orangepi-5b
-          - panther-x2
-          - r66s
-          - r68s
-          - renegade-rk3328
-          - rk3318-box
-          - rock5b
-          - rock5c
-          - ruisen-box
-          - s905
-          - s905-beelink-mini
-          - s905-mxqpro-plus
-          - s905d
-          - s905d-ki-pro
-          - s905d-sml5442tw
-          - s905l
-          - s905l-aurora-1s
-          - s905l-b860av21u
-          - s905l-mg101
-          - s905l2
-          - s905l2-e900v21e
-          - s905l2-wojia
-          - s905l3
-          - s905l3-cm211
-          - s905l3-unt400g1
-          - s905l3-unt402a
-          - s905l3a
-          - s905l3a-cm311
-          - s905l3a-m401a
-          - s905l3b
-          - s905l3b-e900v21d
-          - s905l3b-e900v22d
-          - s905l3b-e900v22e
-          - s905l3b-ip103h
-          - s905l3b-rg020et-ca
-          - s905l3b-unt403a
-          - s905lb-ipbs9505
-          - s905lb-q96-mini
-          - s905lb-r3300l
-          - s905mb
-          - s905w
-          - s905w-w95
-          - s905w-x96-mini
-          - s905w-x96w
-          - s905x
-          - s905x-b860h
-          - s905x-nexbox-a95x
-          - s905x-t95
-          - s905x-tbee
-          - s905x-tx9
-          - s905x2
-          - s905x2-km3
-          - s905x2-x96max-2g
-          - s905x3
-          - s905x3-2101
-          - s905x3-a100
-          - s905x3-a95xf3
-          - s905x3-a95xf3-gb
-          - s905x3-b
-          - s905x3-h96max
-          - s905x3-hk1
-          - s905x3-ip1001m
-          - s905x3-q1
-          - s905x3-q2
-          - s905x3-tx3
-          - s905x3-tx3-bz
-          - s905x3-ugoosx3
-          - s905x3-whale
-          - s905x3-x88-pro-x3
-          - s905x3-x96air
-          - s905x3-x96air-gb
-          - s905x3-x96max
-          - s912
-          - s912-h96pro-plus
-          - s912-m8s-pro
-          - s912-nexbox-a1
-          - s912-nexbox-a2
-          - s912-onecloudpro
-          - s912-phicomm-t1
-          - s912-t95z-plus
-          - s912-tx8-max
-          - s912-tx9-pro-2g
-          - s912-tx9-pro-3g
-          - s912-x92
-          - s912-zyxq-fake
-          - s922x
-          - s922x-ct2000
-          - s922x-gtking
-          - s922x-gtkingpro-h
-          - s922x-odroid-n2
-          - s922x-oes-plus
-          - s922x-reva
-          - s922x-ugoos-am6
-          - seewo-sv21
-          - smart-am40
-          - smart-am60
-          - station-m1
-          - station-m2
-          - sv-33a6x
-          - swan1-w28
-          - sw799
-          - tanix-tx6
-          - tb-ls3399
-          - tn3399
-          - tpm312
-          - tqc-a01
-          - tvi3315a
-          - vplus
-          - wxy-oect
-          - wxy-oect-replaced
-          - xiaobao
-          - yskj
-          - zcube1-max
-          - zk-r39a
-          - zysj
+          - s905l3a  # 仅保留目标设备
       openwrt_kernel:
         description: "Select kernel version"
         required: false
-        default: "5.15.y_6.1.y"
+        default: "6.1.147_6.12.41-flippy-93+"
         type: choice
         options:
-          - 5.4.y
-          - 5.10.y
-          - 5.15.y
-          - 6.1.y
-          - 6.6.y
-          - 6.12.y
-          - 5.4.y_5.10.y
-          - 5.15.y_6.1.y
-          - 6.1.y_6.12.y
-          - 6.1.y_6.6.y
-          - 6.6.y_6.12.y
+          - 6.1.147_6.12.41-flippy-93+  # 双内核组合
       auto_kernel:
         description: "Auto use the latest kernel"
         required: false
-        default: true
+        default: false  # 禁用自动内核，固定版本
         type: boolean
       kernel_repo:
         description: "Set the kernel repository"
         required: false
-        default: "ophub/kernel"
+        default: "tianteng888/flippy-kernels"  # 指定flippy内核仓库
         type: choice
         options:
-          - ophub/kernel
+          - tianteng888/flippy-kernels
+          - ophub/kernel  # 保留原选项但默认使用flippy仓库
       kernel_usage:
-        description: "Set the tags of the stable kernel."
+        description: "Set the tags of the kernel"
         required: false
-        default: "stable"
+        default: "neih"  # 对应flippy内核的tag
         type: choice
         options:
+          - neih
           - stable
-          - flippy
-          - dev
-          - beta
       openwrt_storage:
         description: "Select image storage type."
         required: false
@@ -232,15 +62,22 @@ on:
       builder_name:
         description: "Set OpenWrt builder signature."
         required: false
-        default: "ophub"
+        default: "custom-builder"
         type: choice
         options:
+          - custom-builder
           - ophub
-          - angel
-          - yourname
 
 env:
-  TZ: America/New_York
+  TZ: Asia/Shanghai
+  # 固定版本资源地址
+  IMMORTALWRT_VERSION: "24.10.2"
+  ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
+  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic/"  # 确保架构正确
+  # 必需的USB网卡驱动包（覆盖常见芯片型号）
+  REQUIRED_DRIVERS: "kmod-usb-net kmod-usb-net-rtl8152 kmod-usb-net-rtl8153 kmod-usb-net-cdc-ether kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-rtl8812au kmod-usb-net-rtl88x2bu"
+  # 编译依赖保障（确保opkg工具链完整）
+  BUILD_DEPENDS: "opkg-utils curl wget tar gzip lz4 cpio kmod"
 
 jobs:
   build:
@@ -251,25 +88,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialization environment
+      - name: Initialization environment (with full dependencies)
         id: init
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          # 清理冗余环境
           docker rmi $(docker images -q) 2>/dev/null
           [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
           sudo swapoff -a
           sudo rm -f /swapfile /mnt/swapfile
+
+          # 安装完整依赖（确保不缺失编译工具）
           sudo -E apt-get -y update
           sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
           sudo -E apt-get -y install $(curl -fsSL https://tinyurl.com/ubuntu2204-make-openwrt)
+          # 补充opkg相关工具和依赖
+          sudo -E apt-get -y install ${{ env.BUILD_DEPENDS }}
           sudo -E systemctl daemon-reload
-          #sudo -E apt-get -y full-upgrade
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
-          sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
-          sudo rm -rf ~/{.cargo,.dotnet,.rustup}
           sudo timedatectl set-timezone "${TZ}"
           echo "status=success" >> ${GITHUB_OUTPUT}
 
@@ -281,8 +120,7 @@ jobs:
           sudo truncate -s "${root_size}"G /root.img
           sudo losetup /dev/loop6 /mnt/mnt.img
           sudo losetup /dev/loop7 /root.img
-          sudo pvcreate /dev/loop6
-          sudo pvcreate /dev/loop7
+          sudo pvcreate /dev/loop6 /dev/loop7
           sudo vgcreate github /dev/loop6 /dev/loop7
           sudo lvcreate -n runner -l 100%FREE github
           sudo mkfs.xfs /dev/github/runner
@@ -291,72 +129,94 @@ jobs:
           sudo chown -R runner.runner /builder
           df -Th
 
-      - name: Download OpenWrt [ ${{ inputs.source_branch }} ]
+      - name: Download Immortalwrt 24.10.2 rootfs (fixed version)
         id: down
         working-directory: /builder
         if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
         run: |
-          # Set up compilation source code
-          if [[ "${{ inputs.source_branch }}" == *"official"* ]]; then
-              REPO_URL="https://github.com/openwrt/openwrt"
-              REPO_BRANCH="main"
-              TAGS_NAME="official"
-          elif [[ "${{ inputs.source_branch }}" == *"lede"* ]]; then
-              REPO_URL="https://github.com/coolsnowwolf/lede"
-              REPO_BRANCH="master"
-              TAGS_NAME="lede"
-          elif [[ "${{ inputs.source_branch }}" == *"immortalwrt"* ]]; then
-              REPO_URL="https://github.com/immortalwrt/immortalwrt"
-              REPO_BRANCH="master"
-              TAGS_NAME="immortalwrt"
-          else
-              echo "Unknown source code repository."
-              exit 1
+          # 创建输出目录
+          mkdir -p openwrt/output
+          # 下载指定版本rootfs（带校验机制）
+          echo "Downloading ImmortalWrt 24.10.2 rootfs..."
+          wget -q --show-progress --no-check-certificate "${ROOTFS_URL}" -O "openwrt/output/immortalwrt-24.10.2-rootfs.tar.gz"
+          if [ $? -ne 0 ]; then
+            echo "Failed to download rootfs from ${ROOTFS_URL}"
+            exit 1
           fi
-
-          armsr_tarfile_path="openwrt/output"
-          [[ -d "${armsr_tarfile_path}" ]] || mkdir -p ${armsr_tarfile_path}
+          # 验证文件完整性（简单校验）
+          if [ ! -s "openwrt/output/immortalwrt-24.10.2-rootfs.tar.gz" ]; then
+            echo "Downloaded rootfs file is empty"
+            exit 1
+          fi
+          # 建立必要的符号链接
           ln -sf /builder/openwrt ${GITHUB_WORKSPACE}/openwrt
           ln -sf /builder/openwrt /home/runner/work/_actions/ophub/amlogic-s9xxx-openwrt/main/openwrt
-
-          latest_version=$(curl -s \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=100 | \
-                jq -r --arg RTK "OpenWrt_${{ inputs.source_branch }}_" \
-                --arg BOARD "-rootfs.tar.gz" \
-                '[.[] | select(.tag_name | contains($RTK))] |
-                map(.assets[] | select(.browser_download_url | endswith($BOARD))) |
-                sort_by(.updated_at) |
-                reverse |
-                .[0] |
-                {data: .updated_at, url: .browser_download_url}')
-
-          [[ -z "${latest_version}" || "${latest_version}" == "null" ]] && echo "Invalid OpenWrt rootfs download address." && exit 1
-          latest_updated_at="$(echo ${latest_version} | jq -r '.data')"
-          latest_url="$(echo ${latest_version} | jq -r '.url')"
-
-          openwrt_filename="${latest_url##*/}"
-          curl -fsSL "${latest_url}" -o "${armsr_tarfile_path}/${openwrt_filename}"
-          [[ "${?}" -ne "0" ]] && echo "Invalid OpenWrt rootfs download address." && exit 1
-
-          echo "build_tag=OpenWrt_${{ inputs.source_branch }}_${{ inputs.openwrt_storage }}_$(date +"%Y.%m")" >> ${GITHUB_OUTPUT}
-          df -hT ${PWD}
-          echo "REPO_URL=${REPO_URL}" >> ${GITHUB_OUTPUT}
-          echo "TAGS_NAME=${TAGS_NAME}" >> ${GITHUB_OUTPUT}
+          # 设置输出标签
+          echo "build_tag=ImmortalWrt_24.10.2_s905l3a_dual-kernel_$(date +"%Y%m%d")" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Packaging OpenWrt
+      - name: Modify opkg sources (ensure aarch64_generic & opkg format)
+        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
+        working-directory: /builder/openwrt/output
+        run: |
+          # 解压rootfs
+          mkdir -p rootfs
+          tar -zxf immortalwrt-24.10.2-rootfs.tar.gz -C rootfs
+          # 清除原有源配置，替换为指定版本的aarch64_generic仓库
+          cat > rootfs/etc/opkg/distfeeds.conf << EOF
+          src/gz immortalwrt_core ${PACKAGES_REPO}core
+          src/gz immortalwrt_base ${PACKAGES_REPO}base
+          src/gz immortalwrt_luci ${PACKAGES_REPO}luci
+          src/gz immortalwrt_packages ${PACKAGES_REPO}packages
+          src/gz immortalwrt_routing ${PACKAGES_REPO}routing
+          src/gz immortalwrt_telephony ${PACKAGES_REPO}telephony
+          EOF
+          # 验证源配置正确性
+          if ! grep -q "aarch64_generic" rootfs/etc/opkg/distfeeds.conf; then
+            echo "Failed to set correct aarch64_generic repository"
+            exit 1
+          fi
+          # 确保opkg配置文件存在
+          if [ ! -f "rootfs/usr/bin/opkg" ]; then
+            echo "opkg tool not found in rootfs, ensure this is an opkg-based system"
+            exit 1
+          fi
+
+      - name: Install USB network drivers (pre-load for both kernels)
+        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
+        working-directory: /builder/openwrt/output
+        run: |
+          # 准备opkg环境
+          mkdir -p rootfs/tmp/opkg-lists
+          # 复制dns配置确保联网
+          cp /etc/resolv.conf rootfs/etc/resolv.conf
+          # 安装驱动（强制刷新源并安装）
+          echo "Installing required USB network drivers: ${REQUIRED_DRIVERS}"
+          chroot rootfs /bin/sh -c "opkg update && opkg install ${REQUIRED_DRIVERS}"
+          # 验证驱动是否安装成功
+          for driver in ${REQUIRED_DRIVERS}; do
+            if ! chroot rootfs /bin/sh -c "opkg list-installed | grep -q ${driver}"; then
+              echo "Failed to install driver: ${driver}"
+              exit 1
+            fi
+          done
+          # 重新打包rootfs（包含已安装的驱动）
+          rm -f immortalwrt-24.10.2-rootfs.tar.gz
+          tar -zcf immortalwrt-24.10.2-rootfs.tar.gz -C rootfs .
+
+      - name: Packaging OpenWrt with dual kernels
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
-          openwrt_path: openwrt/output/*rootfs.tar.gz
-          openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ inputs.openwrt_kernel }}
-          auto_kernel: ${{ inputs.auto_kernel }}
-          kernel_repo: ${{ inputs.kernel_repo }}
-          kernel_usage: ${{ inputs.kernel_usage }}
+          openwrt_path: openwrt/output/immortalwrt-24.10.2-rootfs.tar.gz
+          openwrt_board: ${{ inputs.openwrt_board }}  # 强制s905l3a
+          openwrt_kernel: ${{ inputs.openwrt_kernel }}  # 双内核组合
+          auto_kernel: ${{ inputs.auto_kernel }}  # 禁用自动更新
+          kernel_repo: ${{ inputs.kernel_repo }}  # 指定flippy仓库
+          kernel_usage: ${{ inputs.kernel_usage }}  # 使用neih标签
           builder_name: ${{ inputs.builder_name }}
+          # 强制内核版本匹配
+          kernel_version: "6.1.147,6.12.41-flippy-93+"
 
       - name: Upload the packaged OpenWrt
         uses: ncipollo/release-action@main
@@ -369,15 +229,10 @@ jobs:
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            ### OpenWrt Image information
+            ### ImmortalWrt 24.10.2 for s905l3a (Dual Kernel)
+            - Kernel versions: 6.1.147 & 6.12.41-flippy-93+
+            - Pre-installed USB network drivers: ${{ env.REQUIRED_DRIVERS }}
+            - Software repository: ${{ env.PACKAGES_REPO }} (aarch64_generic, opkg format)
             - Default IP: 192.168.1.1
-            - Default username: root
-            - Default password: password
-            - Default WIFI name: OpenWrt
-            - Default WIFI password: none
-            ### Install to EMMC
-            - Login to OpenWrt → System → Amlogic Service → Install OpenWrt
-            ### OpenWrt source code
-            - [${{ steps.down.outputs.TAGS_NAME }}](${{ steps.down.outputs.REPO_URL }})
-            ### OpenWrt Image Verification
-            - sha256sum
+            - Default credentials: root / password
+            - Note: Drivers are pre-loaded for both kernels to avoid missing after kernel switch
