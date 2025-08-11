@@ -1,6 +1,6 @@
 #=====================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build OpenWrt using releases files (with opkg & USB Ethernet drivers)
+# Description: Build OpenWrt using releases files (fixed chroot permission)
 #=====================================================================================
 
 name: Build OpenWrt using releases files
@@ -66,10 +66,7 @@ on:
 
 env:
   TZ: Asia/Shanghai
-  # 直接定义完整URL，避免env内部引用
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-  KERNEL_FILE: "6.12.41-flippy-93+.tar.gz"
-  # 直接写完整内核URL，不依赖其他env变量
   KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/6.12.41-flippy-93+.tar.gz"
 
 jobs:
@@ -87,11 +84,13 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y curl wget tar gzip xz-utils unzip build-essential \
             qemu-user-static binfmt-support pv lvm2
+          # 启用binfmt支持（关键：确保qemu能模拟aarch64）
+          sudo update-binfmts --enable qemu-aarch64
           sudo systemctl daemon-reload
           sudo timedatectl set-timezone "${TZ}"
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Create simulated disk
+      - name: Create simulated disk (with proper permissions)
         run: |
           mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 1)
           root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 4)
@@ -104,39 +103,38 @@ jobs:
           sudo lvcreate -n runner -l 100%FREE github
           sudo mkfs.xfs /dev/github/runner
           sudo mkdir -p /builder
-          sudo mount /dev/github/runner /builder
-          sudo chown -R $USER:$USER /builder
+          # 挂载时添加权限选项，确保root可访问
+          sudo mount -o defaults,uid=0,gid=0 /dev/github/runner /builder
+          sudo chmod 755 /builder  # 确保目录权限正确
 
       - name: Download & verify rootfs
         id: download_rootfs
         working-directory: /builder
         run: |
-          # 下载官方rootfs
           mkdir -p openwrt/rootfs
-          wget -c "${{ env.ROOTFS_URL }}" -O openwrt/rootfs.tar.gz
+          sudo wget -c "${{ env.ROOTFS_URL }}" -O openwrt/rootfs.tar.gz
           
-          # 验证文件完整性
           if [ ! -f "openwrt/rootfs.tar.gz" ]; then
             echo "rootfs下载失败" && exit 1
           fi
           
-          # 解压并处理可能的顶层目录
-          tar -zxf openwrt/rootfs.tar.gz -C openwrt/rootfs
+          # 用root权限解压，确保文件所有者正确
+          sudo tar -zxf openwrt/rootfs.tar.gz -C openwrt/rootfs
           rootfs_contents=$(ls openwrt/rootfs)
           if [ $(echo "$rootfs_contents" | wc -l) -eq 1 ] && [ -d "openwrt/rootfs/$rootfs_contents" ]; then
-            # 如果只有一个目录，移动内容到根目录
-            mv openwrt/rootfs/$rootfs_contents/* openwrt/rootfs/
-            rmdir openwrt/rootfs/$rootfs_contents
+            sudo mv openwrt/rootfs/$rootfs_contents/* openwrt/rootfs/
+            sudo rmdir openwrt/rootfs/$rootfs_contents
           fi
           
-          # 查找opkg（支持/usr/bin和/bin路径）
-          OPKG_PATH=$(find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
+          # 查找opkg并确保权限
+          OPKG_PATH=$(sudo find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
           if [ -z "$OPKG_PATH" ]; then
-            echo "错误：未找到opkg，目录结构如下："
-            ls -la openwrt/rootfs/usr/bin
-            ls -la openwrt/rootfs/bin
+            echo "错误：未找到opkg"
+            sudo ls -la openwrt/rootfs/usr/bin
+            sudo ls -la openwrt/rootfs/bin
             exit 1
           fi
+          sudo chmod +x "$OPKG_PATH"  # 确保opkg可执行
           
           echo "找到opkg：$OPKG_PATH"
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
@@ -145,10 +143,9 @@ jobs:
       - name: Configure opkg sources
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
-          # 配置官方源
           OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
-          mkdir -p $(dirname $OPKG_CONF)
-          cat > $OPKG_CONF << EOF
+          sudo mkdir -p $(dirname $OPKG_CONF)
+          sudo tee $OPKG_CONF << EOF
           src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
           src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/base
           src/gz immortalwrt_luci https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/luci
@@ -157,40 +154,41 @@ jobs:
           src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/telephony
           EOF
 
-      - name: Install USB Ethernet drivers
+      - name: Install USB Ethernet drivers (fixed chroot permission)
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
-          # 准备chroot环境
           ROOTFS_DIR="/builder/openwrt/rootfs"
+          # 挂载必要系统目录（确保以root执行）
           sudo mount -o bind /dev $ROOTFS_DIR/dev
           sudo mount -o bind /proc $ROOTFS_DIR/proc
           sudo mount -o bind /sys $ROOTFS_DIR/sys
+          # 复制qemu模拟器并赋予执行权限
           sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
+          sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
           
-          # 安装驱动
-          chroot $ROOTFS_DIR /bin/sh -c "opkg update"
-          chroot $ROOTFS_DIR /bin/sh -c "opkg install \
+          # 关键：用sudo执行chroot，确保权限
+          sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update"
+          sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install \
             kmod-usb-net kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 \
             kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-dm9601-ether \
             kmod-usb-net-smsc95xx kmod-usb2 kmod-usb3 kmod-usb-xhci-hcd"
           
-          # 清理挂载
+          # 清理挂载（防止占用）
           sudo umount $ROOTFS_DIR/dev
           sudo umount $ROOTFS_DIR/proc
           sudo umount $ROOTFS_DIR/sys
-          rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+          sudo rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
 
       - name: Download kernel
         id: download_kernel
         working-directory: /builder
         run: |
           mkdir -p openwrt/kernel
-          # 使用env中定义的完整KERNEL_URL
-          wget -c "${{ env.KERNEL_URL }}" -O openwrt/kernel/kernel.tar.gz
+          sudo wget -c "${{ env.KERNEL_URL }}" -O openwrt/kernel/kernel.tar.gz
           if [ ! -f "openwrt/kernel/kernel.tar.gz" ]; then
             echo "内核下载失败" && exit 1
           fi
-          tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
+          sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
           echo "status=success" >> ${GITHUB_OUTPUT}
 
       - name: Package OpenWrt
