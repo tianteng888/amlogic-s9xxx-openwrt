@@ -66,9 +66,11 @@ on:
 
 env:
   TZ: Asia/Shanghai
+  # 直接定义完整URL，避免env内部引用
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
   KERNEL_FILE: "6.12.41-flippy-93+.tar.gz"
-  KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/${{ env.KERNEL_FILE }}"
+  # 直接写完整内核URL，不依赖其他env变量
+  KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/6.12.41-flippy-93+.tar.gz"
 
 jobs:
   build:
@@ -183,6 +185,7 @@ jobs:
         working-directory: /builder
         run: |
           mkdir -p openwrt/kernel
+          # 使用env中定义的完整KERNEL_URL
           wget -c "${{ env.KERNEL_URL }}" -O openwrt/kernel/kernel.tar.gz
           if [ ! -f "openwrt/kernel/kernel.tar.gz" ]; then
             echo "内核下载失败" && exit 1
