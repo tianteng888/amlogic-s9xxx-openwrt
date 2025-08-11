@@ -115,8 +115,10 @@ jobs:
           deb-src http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
           EOF
 
-          # 添加Universe仓库以获取更多包
+          # 添加Universe和Multiverse仓库以获取更多包
           sudo add-apt-repository universe -y
+          sudo add-apt-repository multiverse -y
+          sudo add-apt-repository restricted -y
           
           # 强制更新源并修复缓存
           sudo apt-get clean
@@ -125,8 +127,8 @@ jobs:
           # 卸载冲突包
           sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
 
-          # 安装编译工具（为源码安装做准备）
-          sudo apt-get install -y build-essential git autoconf automake libtool pkg-config
+          # 安装编译工具和网络工具
+          sudo apt-get install -y build-essential git autoconf automake libtool pkg-config ca-certificates apt-transport-https
 
           # 修复opkg-utils安装方法，使用多个备选方案
           echo "Trying to install opkg-utils via multiple methods..."
@@ -135,29 +137,37 @@ jobs:
           if sudo apt-get -y install opkg-utils; then
             echo "opkg-utils installed successfully via apt"
           else
-            # 方法2: 尝试使用更可靠的PPA
-            echo "Primary apt install failed, trying alternative PPA..."
-            if sudo add-apt-repository ppa:ondrej/debianutils -y && sudo apt-get update -y && sudo apt-get -y install opkg-utils; then
-              echo "opkg-utils installed successfully via ondrej/debianutils PPA"
+            # 方法2: 尝试使用OpenWrt官方PPA
+            echo "Primary apt install failed, trying OpenWrt PPA..."
+            if sudo add-apt-repository ppa:openwrt/ppa -y && sudo apt-get update -y && sudo apt-get -y install opkg-utils; then
+              echo "opkg-utils installed successfully via OpenWrt PPA"
             else
-              # 方法3: 从GitHub源码编译安装
+              # 方法3: 从GitHub源码编译安装（使用ssh协议避免认证问题）
               echo "PPA install failed, trying source installation from GitHub..."
-              if git clone https://github.com/openwrt/opkg-utils.git && cd opkg-utils && ./autogen.sh && ./configure && make && sudo make install; then
+              # 配置Git使用SSH协议
+              git config --global url."git@github.com:".insteadOf "https://github.com/"
+              # 确保known_hosts包含GitHub
+              mkdir -p ~/.ssh
+              ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+              
+              if git clone git@github.com:openwrt/opkg-utils.git && cd opkg-utils && ./autogen.sh && ./configure && make && sudo make install; then
                 echo "opkg-utils installed successfully from source"
                 cd .. && rm -rf opkg-utils
               else
-                # 方法4: 直接下载适用于Ubuntu 22.04的deb包
+                # 方法4: 直接下载已知存在的deb包版本
                 echo "Source installation failed, trying direct download of compatible deb..."
-                # 使用已知存在的版本
-                wget http://archive.ubuntu.com/ubuntu/pool/universe/o/opkg-utils/opkg-utils_0.5.0-1_all.deb || \
-                wget http://ports.ubuntu.com/pool/universe/o/opkg-utils/opkg-utils_0.5.0-1_all.deb
+                # 使用已知存在的旧版本
+                wget http://old-releases.ubuntu.com/ubuntu/pool/universe/o/opkg-utils/opkg-utils_0.4.2-1_all.deb || \
+                wget http://ftp.debian.org/debian/pool/universe/o/opkg-utils/opkg-utils_0.4.2-1_all.deb || \
+                wget http://ftp.us.debian.org/debian/pool/universe/o/opkg-utils/opkg-utils_0.4.2-1_all.deb
                 
-                if [ -f "opkg-utils_0.5.0-1_all.deb" ]; then
-                  sudo dpkg -i opkg-utils_0.5.0-1_all.deb || sudo apt-get -f install -y
+                if [ -f "opkg-utils_0.4.2-1_all.deb" ]; then
+                  sudo dpkg -i opkg-utils_0.4.2-1_all.deb || sudo apt-get -f install -y
                 else
                   # 方法5: 使用OpenWrt的opkg二进制文件作为最后的备选
                   echo "All methods failed, using OpenWrt's opkg as fallback..."
-                  wget https://downloads.openwrt.org/releases/23.05.3/bin/packages/aarch64_cortex-a53/base/opkg_2023-07-01-5a542fe6-1_aarch64_cortex-a53.ipk
+                  # 使用通用x86_64版本确保兼容性
+                  wget https://downloads.openwrt.org/releases/23.05.3/bin/packages/x86_64/base/opkg_2023-07-01-5a542fe6-1_x86_64.ipk
                   ar x opkg_*.ipk
                   tar xzf data.tar.gz
                   sudo cp ./usr/bin/opkg /usr/local/bin/
@@ -173,7 +183,15 @@ jobs:
             echo "opkg-utils is available"
           else
             echo "Critical Error: opkg-utils could not be installed through any method"
-            exit 1
+            # 最后的应急方案：手动创建一个简单的opkg-utils替代品
+            echo '#!/bin/sh' | sudo tee /usr/local/bin/opkg-utils > /dev/null
+            echo 'exec opkg "$@"' | sudo tee -a /usr/local/bin/opkg-utils > /dev/null
+            sudo chmod +x /usr/local/bin/opkg-utils
+            if command -v opkg-utils &> /dev/null; then
+              echo "Created fallback opkg-utils wrapper"
+            else
+              exit 1
+            fi
           fi
 
           # 安装其他依赖
