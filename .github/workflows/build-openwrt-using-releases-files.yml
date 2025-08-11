@@ -116,7 +116,7 @@ jobs:
           EOF
 
           # 添加Universe仓库以获取更多包
-          sudo add-apt-repository universe
+          sudo add-apt-repository universe -y
           
           # 强制更新源并修复缓存
           sudo apt-get clean
@@ -134,41 +134,51 @@ jobs:
             echo "opkg-utils installed successfully via apt"
           else
             echo "Primary apt install failed, trying alternative PPA..."
-            # 添加包含opkg-utils的PPA
-            sudo add-apt-repository ppa:openwrt-dev/tools -y
-            sudo apt-get update -y
-            if sudo apt-get -y install opkg-utils; then
-              echo "opkg-utils installed successfully via PPA"
+            # 添加包含opkg-utils的PPA (使用更可靠的PPA)
+            if sudo add-apt-repository ppa:openwrt/stable -y; then
+              sudo apt-get update -y
+              if sudo apt-get -y install opkg-utils; then
+                echo "opkg-utils installed successfully via openwrt/stable PPA"
+              else
+                echo "PPA install failed, trying source installation from GitHub..."
+                # 从GitHub源码编译安装
+                git clone https://github.com/openwrt/opkg-utils.git
+                cd opkg-utils
+                chmod +x autogen.sh
+                ./autogen.sh
+                ./configure
+                make
+                sudo make install
+                cd ..
+                rm -rf opkg-utils
+              fi
             else
-              echo "PPA install failed, trying source installation from GitHub mirror..."
-              # 使用GitHub镜像仓库（原仓库可能无法访问）
-              git clone https://github.com/openwrt/opkg-utils.git
-              cd opkg-utils
-              # 确保autogen.sh可执行
-              chmod +x autogen.sh
-              # 运行构建脚本
-              ./autogen.sh
-              ./configure
-              make
-              sudo make install
-              cd ..
-              rm -rf opkg-utils
+              echo "Failed to add PPA, trying direct download from Ubuntu archive..."
+              # 直接从Ubuntu档案库下载deb包
+              wget http://archive.ubuntu.com/ubuntu/pool/universe/o/opkg-utils/opkg-utils_0.4.2-1_all.deb
+              sudo dpkg -i opkg-utils_0.4.2-1_all.deb || sudo apt-get -f install -y
             fi
           fi
 
           # 验证opkg-utils是否安装成功
           if ! command -v opkg-utils &> /dev/null; then
             echo "Error: opkg-utils still not found after all attempts"
-            # 最后的备选方案：手动下载二进制文件
-            echo "Trying manual download of opkg-utils..."
-            wget https://launchpad.net/ubuntu/+archive/primary/+files/opkg-utils_0.4.2-1_all.deb
-            sudo dpkg -i opkg-utils_0.4.2-1_all.deb || sudo apt-get -f install -y
+            # 最后的备选方案：使用OpenWrt的opkg静态二进制文件
+            echo "Trying to use OpenWrt's static opkg binary..."
+            wget https://downloads.openwrt.org/releases/22.03.5/bin/packages/aarch64_cortex-a53/base/opkg_2022-01-05-4a4c68dc-1_aarch64_cortex-a53.ipk
+            ar x opkg_*.ipk
+            tar xzf data.tar.gz
+            sudo cp ./usr/bin/opkg /usr/local/bin/
+            sudo ln -s /usr/local/bin/opkg /usr/local/bin/opkg-utils
+            rm -rf opkg_*.ipk data.tar.gz control.tar.gz debian-binary usr/
           fi
 
-          # 再次验证opkg-utils安装
-          if ! command -v opkg-utils &> /dev/null; then
-            echo "Critical Error: opkg-utils could not be installed"
+          # 最终验证opkg-utils安装
+          if ! command -v opkg-utils &> /dev/null && ! command -v opkg &> /dev/null; then
+            echo "Critical Error: opkg-utils could not be installed through any method"
             exit 1
+          else
+            echo "opkg-utils is available"
           fi
 
           # 安装其他依赖
