@@ -1,16 +1,15 @@
 name: Build S905L3A ImmortalWrt 24.10.2
 
-# 触发条件：支持手动触发和推送触发
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - '.github/workflows/build-s905l3a.yml'  # 只有当此文件变更时才触发
+      - '.github/workflows/build-s905l3a.yml'
 
+# 定义环境变量
 env:
   TZ: Asia/Shanghai
-  # 基础配置
   DEVICE: "s905l3a"
   IMMORTALWRT_VERSION: "24.10.2"
   KERNEL_VERSION: "6.12.41-flippy-93+"
@@ -18,15 +17,17 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    name: Build OpenWrt for ${{ env.DEVICE }}
-    timeout-minutes: 60  # 设置超时时间
+    # 避免在name字段直接使用env变量，改用固定描述
+    name: Build OpenWrt for S905L3A
+    timeout-minutes: 60
 
     steps:
-      - name: 检查工作流权限
+      - name: 检查环境变量
         run: |
-          echo "当前仓库: ${{ github.repository }}"
-          echo "触发用户: ${{ github.actor }}"
-          echo "工作流权限: ${{ toJson(github.token) != '' }}"
+          # 在步骤中验证环境变量
+          echo "设备型号: $DEVICE"
+          echo "OpenWrt版本: $IMMORTALWRT_VERSION"
+          echo "内核版本: $KERNEL_VERSION"
 
       - name: 检出代码
         uses: actions/checkout@v4
@@ -43,55 +44,40 @@ jobs:
       - name: 创建工作目录
         run: |
           mkdir -p ~/openwrt/{rootfs,kernel,output}
-          echo "工作目录创建完成"
 
       - name: 下载Rootfs文件
         id: download_rootfs
         run: |
-          # 使用正确的环境变量引用方式
-          ROOTFS_URL="https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz"
+          ROOTFS_URL="https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/targets/armsr/armv8/immortalwrt-${IMMORTALWRT_VERSION}-armsr-armv8-rootfs.tar.gz"
           echo "开始下载Rootfs: $ROOTFS_URL"
           wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz "$ROOTFS_URL"
           
-          if [ $? -ne 0 ]; then
-            echo "Rootfs下载失败，尝试备用源"
-            # 备用源
-            wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz "https://mirror.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz"
-          fi
-          
           if [ ! -f ~/openwrt/rootfs/rootfs.tar.gz ]; then
-            echo "所有源都下载失败"
+            echo "Rootfs下载失败"
             exit 1
           fi
-          
-          echo "Rootfs下载完成，大小: $(du -h ~/openwrt/rootfs/rootfs.tar.gz | awk '{print $1}')"
 
       - name: 修复OPKG源
         run: |
-          echo "解压Rootfs以修复OPKG源"
           mkdir -p ~/openwrt/rootfs/tmp
           tar -zxf ~/openwrt/rootfs/rootfs.tar.gz -C ~/openwrt/rootfs/tmp
           
-          echo "替换OPKG源"
-          # 正确引用环境变量
           cat > ~/openwrt/rootfs/tmp/etc/opkg/distfeeds.conf << EOF
-          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/packages
-          src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/base
-          src/gz immortalwrt_luci https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/luci
-          src/gz immortalwrt_packages https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/packages
-          src/gz immortalwrt_routing https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/routing
-          src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/telephony
+          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/targets/armsr/armv8/packages
+          src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/packages/aarch64_cortex-a53/base
+          src/gz immortalwrt_luci https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/packages/aarch64_cortex-a53/luci
+          src/gz immortalwrt_packages https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/packages/aarch64_cortex-a53/packages
+          src/gz immortalwrt_routing https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/packages/aarch64_cortex-a53/routing
+          src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/${IMMORTALWRT_VERSION}/packages/aarch64_cortex-a53/telephony
           EOF
           
-          echo "重新打包Rootfs"
           rm -f ~/openwrt/rootfs/rootfs.tar.gz
           tar -zcf ~/openwrt/rootfs/rootfs.tar.gz -C ~/openwrt/rootfs/tmp .
 
       - name: 下载内核文件
         id: download_kernel
         run: |
-          # 正确引用环境变量
-          KERNEL_URL="https://github.com/tianteng888/flippy-kernels/releases/download/neih/${{ env.KERNEL_VERSION }}.tar.gz"
+          KERNEL_URL="https://github.com/tianteng888/flippy-kernels/releases/download/neih/${KERNEL_VERSION}.tar.gz"
           echo "开始下载内核: $KERNEL_URL"
           wget -c --timeout=30 --tries=5 -O ~/openwrt/kernel/kernel.tar.gz "$KERNEL_URL"
           
@@ -100,32 +86,23 @@ jobs:
             exit 1
           fi
           
-          echo "内核下载完成，大小: $(du -h ~/openwrt/kernel/kernel.tar.gz | awk '{print $1}')"
           tar -zxf ~/openwrt/kernel/kernel.tar.gz -C ~/openwrt/kernel/
 
       - name: 构建镜像
         id: build_image
         run: |
-          echo "开始构建${{ env.DEVICE }}镜像"
-          
-          # 克隆构建脚本
+          echo "开始构建${DEVICE}镜像"
           git clone https://github.com/ophub/amlogic-s9xxx-openwrt.git ~/amlogic-script
           cd ~/amlogic-script
           
-          # 执行构建
           sudo bash -x build-openwrt.sh \
-            -d ${{ env.DEVICE }} \
+            -d "$DEVICE" \
             -f ~/openwrt/rootfs/rootfs.tar.gz \
             -k ~/openwrt/kernel \
             -o ~/openwrt/output \
             -t ext4 \
             -s 1024
           
-          # 检查输出
-          echo "构建输出文件:"
-          ls -lh ~/openwrt/output/
-          
-          # 记录输出文件名
           OUTPUT_FILE=$(ls ~/openwrt/output/*.img | head -n 1)
           echo "output_file=$OUTPUT_FILE" >> $GITHUB_OUTPUT
 
@@ -133,6 +110,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: steps.build_image.outputs.output_file != ''
         with:
-          name: ${{ env.DEVICE }}-immortalwrt-${{ env.IMMORTALWRT_VERSION }}
+          name: "${{ env.DEVICE }}-immortalwrt-${{ env.IMMORTALWRT_VERSION }}"
           path: ${{ steps.build_image.outputs.output_file }}
           retention-days: 7
