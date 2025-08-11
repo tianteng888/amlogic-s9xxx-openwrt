@@ -103,13 +103,15 @@ jobs:
           sudo rm -f /swapfile /mnt/swapfile
 
           # 启用universe软件源（解决opkg-utils找不到的问题）
-          sudo add-apt-repository universe -y
+          sudo add-apt-repository universe -y || true
 
-          # 安装完整依赖（确保不缺失编译工具）
-          sudo -E apt-get -y update
+          # 安装完整依赖（优先确保opkg-utils可用）
+          sudo -E apt-get -y update --fix-missing  # 强制刷新源并修复可能的缓存问题
           sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          # 优先单独安装opkg-utils，确保其成功
+          sudo -E apt-get -y install opkg-utils
+          # 安装其他基础依赖和编译工具链
           sudo -E apt-get -y install $(curl -fsSL https://tinyurl.com/ubuntu2204-make-openwrt)
-          # 补充opkg相关工具和依赖
           sudo -E apt-get -y install ${{ env.BUILD_DEPENDS }}
           sudo -E systemctl daemon-reload
           sudo -E apt-get -y autoremove --purge
