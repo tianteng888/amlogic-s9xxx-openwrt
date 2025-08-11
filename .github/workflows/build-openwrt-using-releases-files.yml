@@ -12,7 +12,7 @@ on:
       source_branch:
         description: "Select the source branch"
         required: false
-        default: "immortalwrt"  # 默认使用immortalwrt以匹配24.10.2版本
+        default: "immortalwrt"
         type: choice
         options:
           - official
@@ -21,171 +21,16 @@ on:
       openwrt_board:
         description: "Select device board"
         required: false
-        default: "s905l3a"  # 默认s905l3a设备
+        default: "s905l3a"
         type: choice
         options:
-          - all
-          - top50
-          - rest50
-          - a311d-oes_s905d_s905x3_s922x-ct2000_wxy-oect
-          - a311d
-          - a311d-oes
-          - alark35-3500
-          - anas3035
-          - beikeyun
-          - chainedbox
-          - crrc
-          - dc-a588
-          - dg3399
-          - dg-tn3568
-          - dlfr100
-          - e20c
-          - e25
-          - eaidk-610
-          - emb3531
-          - fine3399
-          - firefly-rk3399
-          - fmx1-pro
-          - jp-tvbox
-          - h28k
-          - h66k
-          - h68k
-          - h69k
-          - h88k
-          - h88k-v3
-          - h96-max-m2
-          - hs530r
-          - hugsun-x99
-          - ipc-r
-          - king3399
-          - kylin3399
-          - lckfb-tspi
-          - leez
-          - lx-r3s
-          - mrkaio-m68s
-          - nanopc-t6
-          - nanopi-r5c
-          - nanopi-r5s
-          - orangepi-5-plus
-          - orangepi-5b
-          - panther-x2
-          - r66s
-          - r68s
-          - renegade-rk3328
-          - rk3318-box
-          - rock5b
-          - rock5c
-          - ruisen-box
-          - s905
-          - s905-beelink-mini
-          - s905-mxqpro-plus
-          - s905d
-          - s905d-ki-pro
-          - s905d-sml5442tw
-          - s905l
-          - s905l-aurora-1s
-          - s905l-b860av21u
-          - s905l-mg101
-          - s905l2
-          - s905l2-e900v21e
-          - s905l2-wojia
-          - s905l3
-          - s905l3-cm211
-          - s905l3-unt400g1
-          - s905l3-unt402a
           - s905l3a
           - s905l3a-cm311
           - s905l3a-m401a
-          - s905l3b
-          - s905l3b-e900v21d
-          - s905l3b-e900v22d
-          - s905l3b-e900v22e
-          - s905l3b-ip103h
-          - s905l3b-rg020et-ca
-          - s905l3b-unt403a
-          - s905lb-ipbs9505
-          - s905lb-q96-mini
-          - s905lb-r3300l
-          - s905mb
-          - s905w
-          - s905w-w95
-          - s905w-x96-mini
-          - s905w-x96w
-          - s905x
-          - s905x-b860h
-          - s905x-nexbox-a95x
-          - s905x-t95
-          - s905x-tbee
-          - s905x-tx9
-          - s905x2
-          - s905x2-km3
-          - s905x2-x96max-2g
-          - s905x3
-          - s905x3-2101
-          - s905x3-a100
-          - s905x3-a95xf3
-          - s905x3-a95xf3-gb
-          - s905x3-b
-          - s905x3-h96max
-          - s905x3-hk1
-          - s905x3-ip1001m
-          - s905x3-q1
-          - s905x3-q2
-          - s905x3-tx3
-          - s905x3-tx3-bz
-          - s905x3-ugoosx3
-          - s905x3-whale
-          - s905x3-x88-pro-x3
-          - s905x3-x96air
-          - s905x3-x96air-gb
-          - s905x3-x96max
-          - s912
-          - s912-h96pro-plus
-          - s912-m8s-pro
-          - s912-nexbox-a1
-          - s912-nexbox-a2
-          - s912-onecloudpro
-          - s912-phicomm-t1
-          - s912-t95z-plus
-          - s912-tx8-max
-          - s912-tx9-pro-2g
-          - s912-tx9-pro-3g
-          - s912-x92
-          - s912-zyxq-fake
-          - s922x
-          - s922x-ct2000
-          - s922x-gtking
-          - s922x-gtkingpro-h
-          - s922x-odroid-n2
-          - s922x-oes-plus
-          - s922x-reva
-          - s922x-ugoos-am6
-          - seewo-sv21
-          - smart-am40
-          - smart-am60
-          - station-m1
-          - station-m2
-          - sv-33a6x
-          - swan1-w28
-          - sw799
-          - tanix-tx6
-          - tb-ls3399
-          - tn3399
-          - tpm312
-          - tqc-a01
-          - tvi3315a
-          - vplus
-          - wxy-oect
-          - wxy-oect-replaced
-          - xiaobao
-          - yskj
-          - zcube1-max
-          - zk-r39a
-          - zysj
       openwrt_kernel:
         description: "Select kernel version"
         required: false
-        default: "6.12.y"  # 匹配指定的6.12.41内核
+        default: "6.12.y"
         type: choice
         options:
           - 5.4.y
@@ -194,57 +39,36 @@ on:
           - 6.1.y
           - 6.6.y
           - 6.12.y
-          - 5.4.y_5.10.y
-          - 5.15.y_6.1.y
-          - 6.1.y_6.12.y
-          - 6.1.y_6.6.y
-          - 6.6.y_6.12.y
       auto_kernel:
         description: "Auto use the latest kernel"
         required: false
-        default: false  # 禁用自动内核，使用指定版本
+        default: false
         type: boolean
       kernel_repo:
         description: "Set the kernel repository"
         required: false
-        default: "tianteng888/flippy-kernels"  # 使用指定内核仓库
+        default: "tianteng888/flippy-kernels"
         type: choice
         options:
           - ophub/kernel
           - tianteng888/flippy-kernels
       kernel_usage:
-        description: "Set the tags of the stable kernel."
+        description: "Set the tags of the kernel"
         required: false
-        default: "flippy"  # 匹配flippy内核
+        default: "neih"
         type: choice
         options:
           - stable
           - flippy
           - dev
           - beta
-      openwrt_storage:
-        description: "Select image storage type."
-        required: false
-        default: "save"
-        type: choice
-        options:
-          - save
-          - temp
-      builder_name:
-        description: "Set OpenWrt builder signature."
-        required: false
-        default: "ophub"
-        type: choice
-        options:
-          - ophub
-          - angel
-          - yourname
+          - neih
 
 env:
-  TZ: Asia/Shanghai  # 调整时区为上海
-  ROOTFS_MOUNT: /builder/openwrt/output/rootfs  # rootfs挂载路径
-  OPKG: /builder/openwrt/output/rootfs/usr/bin/opkg  # 自带opkg路径
-  OPKG_CONF: /builder/openwrt/output/rootfs/etc/opkg/distfeeds.conf  # opkg配置文件
+  TZ: Asia/Shanghai
+  ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
+  KERNEL_FILE: "6.12.41-flippy-93+.tar.gz"
+  KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/${{ env.KERNEL_FILE }}"
 
 jobs:
   build:
@@ -257,173 +81,130 @@ jobs:
 
       - name: Initialization environment
         id: init
-        env:
-          DEBIAN_FRONTEND: noninteractive
         run: |
-          docker rmi $(docker images -q) 2>/dev/null
-          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
-          sudo swapoff -a
-          sudo rm -f /swapfile /mnt/swapfile
-          sudo -E apt-get -y update
-          # 安装必要工具（不安装系统opkg，依赖rootfs自带）
-          sudo -E apt-get -y install curl wget tar gzip xz-utils unzip build-essential \
-            qemu-user-static binfmt-support  # 添加qemu支持chroot运行
-          sudo -E systemctl daemon-reload
-          sudo -E apt-get -y autoremove --purge
-          sudo -E apt-get clean
-          sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
-          sudo rm -rf ~/{.cargo,.dotnet,.rustup}
+          sudo apt-get update -y
+          sudo apt-get install -y curl wget tar gzip xz-utils unzip build-essential \
+            qemu-user-static binfmt-support pv lvm2
+          sudo systemctl daemon-reload
           sudo timedatectl set-timezone "${TZ}"
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Create simulated physical disk
+      - name: Create simulated disk
         run: |
-          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
-          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 1)
+          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[a-zA-Z]//g') - 4)
           sudo truncate -s "${mnt_size}"G /mnt/mnt.img
           sudo truncate -s "${root_size}"G /root.img
           sudo losetup /dev/loop6 /mnt/mnt.img
           sudo losetup /dev/loop7 /root.img
-          sudo pvcreate /dev/loop6
-          sudo pvcreate /dev/loop7
+          sudo pvcreate /dev/loop6 /dev/loop7
           sudo vgcreate github /dev/loop6 /dev/loop7
           sudo lvcreate -n runner -l 100%FREE github
           sudo mkfs.xfs /dev/github/runner
           sudo mkdir -p /builder
           sudo mount /dev/github/runner /builder
-          sudo chown -R runner.runner /builder
-          df -Th
+          sudo chown -R $USER:$USER /builder
 
-      - name: Download OpenWrt [ ${{ inputs.source_branch }} ]
-        id: down
+      - name: Download & verify rootfs
+        id: download_rootfs
         working-directory: /builder
-        if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
         run: |
-          # 设置下载源（强制使用immortalwrt 24.10.2版本）
-          if [[ "${{ inputs.source_branch }}" == "immortalwrt" ]]; then
-              # 直接指定24.10.2版本的rootfs
-              ROOTFS_URL="https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-              TAGS_NAME="immortalwrt-24.10.2"
-          else
-              echo "当前配置仅支持immortalwrt源" && exit 1
-          fi
-
-          armsr_tarfile_path="openwrt/output"
-          [[ -d "${armsr_tarfile_path}" ]] || mkdir -p ${armsr_tarfile_path}
-          ln -sf /builder/openwrt ${GITHUB_WORKSPACE}/openwrt
-          ln -sf /builder/openwrt /home/runner/work/_actions/ophub/amlogic-s9xxx-openwrt/main/openwrt
-
-          # 下载指定版本rootfs
-          openwrt_filename="${ROOTFS_URL##*/}"
-          curl -fsSL "${ROOTFS_URL}" -o "${armsr_tarfile_path}/${openwrt_filename}"
-          [[ "${?}" -ne "0" ]] && echo "rootfs下载失败: ${ROOTFS_URL}" && exit 1
-
-          # 解压rootfs（移除--strip-components避免路径错误）
-          mkdir -p ${ROOTFS_MOUNT}
-          tar -zxf "${armsr_tarfile_path}/${openwrt_filename}" -C ${ROOTFS_MOUNT}
+          # 下载官方rootfs
+          mkdir -p openwrt/rootfs
+          wget -c "${{ env.ROOTFS_URL }}" -O openwrt/rootfs.tar.gz
           
-          # 检查解压后的目录结构，修正可能的路径偏移
-          if [ -d "${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs" ]; then
-              # 如果存在顶层目录，移动内容到目标路径
-              mv ${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs/* ${ROOTFS_MOUNT}/
-              rmdir ${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs
+          # 验证文件完整性
+          if [ ! -f "openwrt/rootfs.tar.gz" ]; then
+            echo "rootfs下载失败" && exit 1
           fi
-
-          # 验证opkg是否存在
-          if [ ! -f "${OPKG}" ]; then
-              echo "解压后未找到opkg，检查目录结构："
-              ls -la ${ROOTFS_MOUNT}/usr/bin
-              echo "错误: rootfs中未找到opkg" && exit 1
+          
+          # 解压并处理可能的顶层目录
+          tar -zxf openwrt/rootfs.tar.gz -C openwrt/rootfs
+          rootfs_contents=$(ls openwrt/rootfs)
+          if [ $(echo "$rootfs_contents" | wc -l) -eq 1 ] && [ -d "openwrt/rootfs/$rootfs_contents" ]; then
+            # 如果只有一个目录，移动内容到根目录
+            mv openwrt/rootfs/$rootfs_contents/* openwrt/rootfs/
+            rmdir openwrt/rootfs/$rootfs_contents
           fi
-
-          echo "build_tag=OpenWrt_${TAGS_NAME}_${{ inputs.openwrt_board }}_$(date +"%Y%m%d")" >> ${GITHUB_OUTPUT}
-          df -hT ${PWD}
-          echo "REPO_URL=https://github.com/immortalwrt/immortalwrt" >> ${GITHUB_OUTPUT}
-          echo "TAGS_NAME=${TAGS_NAME}" >> ${GITHUB_OUTPUT}
+          
+          # 查找opkg（支持/usr/bin和/bin路径）
+          OPKG_PATH=$(find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
+          if [ -z "$OPKG_PATH" ]; then
+            echo "错误：未找到opkg，目录结构如下："
+            ls -la openwrt/rootfs/usr/bin
+            ls -la openwrt/rootfs/bin
+            exit 1
+          fi
+          
+          echo "找到opkg：$OPKG_PATH"
+          echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Configure opkg and install USB Ethernet drivers
-        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
+      - name: Configure opkg sources
+        if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
-          # 再次验证rootfs中的opkg
-          if [ ! -f "${OPKG}" ]; then
-            echo "错误: rootfs中未找到opkg" && exit 1
+          # 配置官方源
+          OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
+          mkdir -p $(dirname $OPKG_CONF)
+          cat > $OPKG_CONF << EOF
+          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
+          src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/base
+          src/gz immortalwrt_luci https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/luci
+          src/gz immortalwrt_packages https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/packages
+          src/gz immortalwrt_routing https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/routing
+          src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/telephony
+          EOF
+
+      - name: Install USB Ethernet drivers
+        if: ${{ steps.download_rootfs.outputs.status }} == 'success'
+        run: |
+          # 准备chroot环境
+          ROOTFS_DIR="/builder/openwrt/rootfs"
+          sudo mount -o bind /dev $ROOTFS_DIR/dev
+          sudo mount -o bind /proc $ROOTFS_DIR/proc
+          sudo mount -o bind /sys $ROOTFS_DIR/sys
+          sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
+          
+          # 安装驱动
+          chroot $ROOTFS_DIR /bin/sh -c "opkg update"
+          chroot $ROOTFS_DIR /bin/sh -c "opkg install \
+            kmod-usb-net kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 \
+            kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-dm9601-ether \
+            kmod-usb-net-smsc95xx kmod-usb2 kmod-usb3 kmod-usb-xhci-hcd"
+          
+          # 清理挂载
+          sudo umount $ROOTFS_DIR/dev
+          sudo umount $ROOTFS_DIR/proc
+          sudo umount $ROOTFS_DIR/sys
+          rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+
+      - name: Download kernel
+        id: download_kernel
+        working-directory: /builder
+        run: |
+          mkdir -p openwrt/kernel
+          wget -c "${{ env.KERNEL_URL }}" -O openwrt/kernel/kernel.tar.gz
+          if [ ! -f "openwrt/kernel/kernel.tar.gz" ]; then
+            echo "内核下载失败" && exit 1
           fi
-          chmod +x "${OPKG}"
+          tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
+          echo "status=success" >> ${GITHUB_OUTPUT}
 
-          # 配置immortalwrt 24.10.2官方源（匹配架构）
-          > "${OPKG_CONF}"
-          echo "src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages" >> "${OPKG_CONF}"
-          echo "src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/base" >> "${OPKG_CONF}"
-          echo "src/gz immortalwrt_luci https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/luci" >> "${OPKG_CONF}"
-          echo "src/gz immortalwrt_packages https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/packages" >> "${OPKG_CONF}"
-          echo "src/gz immortalwrt_routing https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/routing" >> "${OPKG_CONF}"
-          echo "src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/telephony" >> "${OPKG_CONF}"
-
-          # 准备chroot环境（挂载必要系统目录）
-          sudo mount -o bind /dev ${ROOTFS_MOUNT}/dev
-          sudo mount -o bind /proc ${ROOTFS_MOUNT}/proc
-          sudo mount -o bind /sys ${ROOTFS_MOUNT}/sys
-          sudo cp /usr/bin/qemu-aarch64-static ${ROOTFS_MOUNT}/usr/bin/  # 支持aarch64模拟
-
-          # 安装USB转网口驱动（覆盖常见芯片）
-          chroot ${ROOTFS_MOUNT} /bin/sh -c "opkg update"
-          chroot ${ROOTFS_MOUNT} /bin/sh -c "opkg install \
-            kmod-usb-net \
-            kmod-usb-net-rtl8150 \
-            kmod-usb-net-rtl8152 \
-            kmod-usb-net-asix \
-            kmod-usb-net-asix-ax88179 \
-            kmod-usb-net-dm9601-ether \
-            kmod-usb-net-smsc95xx \
-            kmod-usb-uhci \
-            kmod-usb-ohci \
-            kmod-usb-ehci \
-            kmod-usb-xhci-hcd \
-            kmod-usb2 \
-            kmod-usb3"
-
-          # 清理挂载点
-          sudo umount ${ROOTFS_MOUNT}/dev
-          sudo umount ${ROOTFS_MOUNT}/proc
-          sudo umount ${ROOTFS_MOUNT}/sys
-          rm -f ${ROOTFS_MOUNT}/usr/bin/qemu-aarch64-static
-
-      - name: Packaging OpenWrt
-        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
+      - name: Package OpenWrt
+        if: ${{ steps.download_kernel.outputs.status }} == 'success'
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
-          openwrt_path: openwrt/output/rootfs  # 使用预处理后的rootfs
+          openwrt_path: /builder/openwrt/rootfs
           openwrt_board: ${{ inputs.openwrt_board }}
           openwrt_kernel: ${{ inputs.openwrt_kernel }}
           auto_kernel: ${{ inputs.auto_kernel }}
           kernel_repo: ${{ inputs.kernel_repo }}
           kernel_usage: ${{ inputs.kernel_usage }}
-          builder_name: ${{ inputs.builder_name }}
+          kernel_path: /builder/openwrt/kernel
 
-      - name: Upload the packaged OpenWrt
-        uses: ncipollo/release-action@main
-        if: ${{ env.PACKAGED_STATUS }} == 'success' && !cancelled()
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag: ${{ steps.down.outputs.build_tag }}
-          artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
-          allowUpdates: true
-          removeArtifacts: false
-          replacesArtifacts: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          body: |
-            ### OpenWrt Image information
-            - 设备: ${{ inputs.openwrt_board }}
-            - 系统版本: ImmortalWrt 24.10.2
-            - 内核版本: 6.12.41-flippy-93+
-            - 已集成USB转网口驱动（支持Realtek、ASIX等芯片）
-            - 默认IP: 192.168.1.1
-            - 默认用户名: root
-            - 默认密码: password
-            ### 安装说明
-            - 登录系统 → 系统 → Amlogic Service → 安装OpenWrt到EMMC
-            ### 驱动说明
-            - 包含kmod-usb-net系列驱动，支持常见USB网卡
-          draft: false
-          prerelease: false
+          name: openwrt-s905l3a-24.10.2
+          path: ${{ env.PACKAGED_OUTPUTPATH }}/*
+          retention-days: 14
