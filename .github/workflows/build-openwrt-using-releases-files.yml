@@ -21,13 +21,14 @@ on:
       openwrt_kernel:
         description: "内核版本（官方最新）"
         required: true
-        default: "6.12.y"
+        default: "latest"
         type: choice
         options:
+          - latest  # 最新内核
           - 5.15.y
           - 6.1.y
           - 6.6.y
-          - 6.12.y  # 官方最新稳定版
+          - 6.12.y
       kernel_repo:
         description: "内核仓库（官方）"
         required: true
@@ -204,26 +205,27 @@ jobs:
             echo "rootfs_status=partial" >> ${GITHUB_OUTPUT}
           fi
 
-      - name: 下载官方内核文件
+      - name: 下载官方内核文件（获取最新版本）
         id: download_kernel
         working-directory: /builder
         run: |
           mkdir -p openwrt/kernel
-          echo "从官方仓库获取内核: ${{ inputs.kernel_repo }} ${{ inputs.openwrt_kernel }}"
+          echo "从官方仓库获取最新内核: ${{ inputs.kernel_repo }}"
           
-          # 从官方内核仓库动态获取最新内核
-          KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases/latest" | jq -r '.tag_name' | grep -E "${{ inputs.openwrt_kernel }}")
-          if [ -z "$KERNEL_TAG" ]; then
-            KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases" | jq -r '.[] | .tag_name' | grep -E "${{ inputs.openwrt_kernel }}" | head -n 1)
+          # 从官方内核仓库动态获取最新内核（不限制版本）
+          KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases/latest" | jq -r '.tag_name')
+          if [ -z "$KERNEL_TAG" ] || [ "$KERNEL_TAG" = "null" ]; then
+            # 如果latest获取失败，从所有发布中取最新的第一个
+            KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases" | jq -r '.[] | .tag_name' | head -n 1)
           fi
           
-          if [ -z "$KERNEL_TAG" ]; then
-            echo "错误：未找到官方内核 ${{ inputs.openwrt_kernel }}"
+          if [ -z "$KERNEL_TAG" ] || [ "$KERNEL_TAG" = "null" ]; then
+            echo "错误：未找到官方内核"
             exit 1
           fi
           
           KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
-          echo "下载官方内核: ${KERNEL_URL}"
+          echo "下载官方最新内核: ${KERNEL_URL}"
           
           if ! sudo wget -c "${KERNEL_URL}" -O openwrt/kernel/kernel.tar.gz; then
             echo "错误：官方内核下载失败"
@@ -239,6 +241,7 @@ jobs:
           # 解压内核
           sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
           echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
 
       - name: 检测内核中的驱动支持
         id: check_kernel
@@ -246,6 +249,7 @@ jobs:
         run: |
           KERNEL_DIR="/builder/openwrt/kernel"
           echo "===== 检测内核中的驱动支持 ====="
+          echo "当前使用的内核版本: ${{ steps.download_kernel.outputs.kernel_tag }}"
           
           # 检查内核模块中的USB驱动
           kernel_drivers=(
@@ -402,7 +406,7 @@ jobs:
         with:
           openwrt_path: /builder/openwrt/rootfs
           openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ inputs.openwrt_kernel }}
+          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tag }}  # 使用实际下载的内核版本
           kernel_repo: ${{ inputs.kernel_repo }}
           target_arch: ${{ env.TARGET_ARCH }}
           debug: false
@@ -410,6 +414,6 @@ jobs:
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-official-kernel
+          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.download_kernel.outputs.kernel_tag }}
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
