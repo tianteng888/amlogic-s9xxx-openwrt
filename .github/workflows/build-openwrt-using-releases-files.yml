@@ -14,9 +14,6 @@ env:
   DEVICE: "s905l3a"
   IMMORTALWRT_VERSION: "24.10.2"
   KERNEL_VERSION: "6.12.41-flippy-93+"
-  # 资源链接
-  ROOTFS_URL: "https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz"
-  KERNEL_URL: "https://github.com/tianteng888/flippy-kernels/releases/download/neih/${{ env.KERNEL_VERSION }}.tar.gz"
 
 jobs:
   build:
@@ -51,13 +48,15 @@ jobs:
       - name: 下载Rootfs文件
         id: download_rootfs
         run: |
-          echo "开始下载Rootfs: ${{ env.ROOTFS_URL }}"
-          wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz ${{ env.ROOTFS_URL }}
+          # 使用正确的环境变量引用方式
+          ROOTFS_URL="https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz"
+          echo "开始下载Rootfs: $ROOTFS_URL"
+          wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz "$ROOTFS_URL"
           
           if [ $? -ne 0 ]; then
             echo "Rootfs下载失败，尝试备用源"
-            # 备用源1
-            wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz https://mirror.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz
+            # 备用源
+            wget -c --timeout=30 --tries=5 -O ~/openwrt/rootfs/rootfs.tar.gz "https://mirror.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/immortalwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-rootfs.tar.gz"
           fi
           
           if [ ! -f ~/openwrt/rootfs/rootfs.tar.gz ]; then
@@ -74,6 +73,7 @@ jobs:
           tar -zxf ~/openwrt/rootfs/rootfs.tar.gz -C ~/openwrt/rootfs/tmp
           
           echo "替换OPKG源"
+          # 正确引用环境变量
           cat > ~/openwrt/rootfs/tmp/etc/opkg/distfeeds.conf << EOF
           src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/packages
           src/gz immortalwrt_base https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_cortex-a53/base
@@ -90,8 +90,10 @@ jobs:
       - name: 下载内核文件
         id: download_kernel
         run: |
-          echo "开始下载内核: ${{ env.KERNEL_URL }}"
-          wget -c --timeout=30 --tries=5 -O ~/openwrt/kernel/kernel.tar.gz ${{ env.KERNEL_URL }}
+          # 正确引用环境变量
+          KERNEL_URL="https://github.com/tianteng888/flippy-kernels/releases/download/neih/${{ env.KERNEL_VERSION }}.tar.gz"
+          echo "开始下载内核: $KERNEL_URL"
+          wget -c --timeout=30 --tries=5 -O ~/openwrt/kernel/kernel.tar.gz "$KERNEL_URL"
           
           if [ ! -f ~/openwrt/kernel/kernel.tar.gz ]; then
             echo "内核下载失败"
