@@ -1,5 +1,5 @@
 #=====================================================================================
-# 修复语法错误版：仅使用 RootFS 内置 opkg 工具
+# 完整构建流程：包含内核处理、打包与上传（彻底避开opkg-utils依赖）
 #=====================================================================================
 
 name: Build ImmortalWrt 24.10.2 for s905l3a
@@ -16,12 +16,20 @@ on:
         options:
           - s905l3a
       openwrt_kernel:
-        description: "内核版本"
+        description: "双内核版本"
         required: false
         default: "6.1.147_6.12.41-flippy-93+"
         type: choice
         options:
           - 6.1.147_6.12.41-flippy-93+
+      kernel_repo:
+        description: "内核仓库"
+        required: false
+        default: "tianteng888/flippy-kernels"
+        type: choice
+        options:
+          - tianteng888/flippy-kernels
+          - ophub/kernel
 
 env:
   TZ: Asia/Shanghai
@@ -36,24 +44,23 @@ jobs:
     steps:
       - name: 基础环境准备
         run: |
-          # 仅安装必要工具，避免依赖冲突
           sudo apt-get update -y
           sudo apt-get install -y curl wget tar gzip lz4 cpio kmod
           sudo apt-get clean
 
-      - name: 下载并处理 RootFS
+      - name: 下载并处理RootFS
+        id: rootfs
         run: |
           # 创建工作目录
           mkdir -p openwrt/output
           cd openwrt/output
 
-          # 下载 RootFS 并解压
+          # 下载并解压RootFS
           wget -q --show-progress "${ROOTFS_URL}" -O rootfs.tar.gz
           mkdir rootfs && tar -zxf rootfs.tar.gz -C rootfs
 
-          # 修改软件源（使用 RootFS 内置 opkg）
+          # 修改软件源（使用内置opkg）
           cat > rootfs/etc/opkg/distfeeds.conf <<EOF
           src/gz immortalwrt_core ${PACKAGES_REPO}core
           src/gz immortalwrt_base ${PACKAGES_REPO}base
           src/gz immortalwrt_luci ${PACKAGES_REPO}luci
-          src/gz immortalwrt_packages ${PACKAGES_REPO}packages
