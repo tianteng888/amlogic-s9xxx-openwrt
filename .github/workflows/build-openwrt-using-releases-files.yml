@@ -29,6 +29,23 @@ on:
           - 6.1.y
           - 6.6.y
           - 6.12.y
+      kernel_source:
+        description: "选择内核源码"
+        required: false
+        default: "unifreq"
+        type: choice
+        options:
+          - unifreq
+          - codesnas
+      kernel_toolchain:
+        description: "选择编译工具链"
+        required: false
+        default: "gcc"
+        type: choice
+        options:
+          - clang
+          - gcc
+          - gcc-14.2
       kernel_repo:
         description: "内核仓库（官方）"
         required: true
@@ -61,7 +78,7 @@ jobs:
           sudo apt-get install -y \
             curl wget tar gzip xz-utils unzip build-essential \
             qemu-user-static binfmt-support pv lvm2 xfsprogs \
-            net-tools iputils-ping
+            net-tools iputils-ping jq
           
           # 启用aarch64架构模拟
           sudo update-binfmts --enable qemu-aarch64
@@ -205,9 +222,10 @@ jobs:
             echo "rootfs_status=partial" >> ${GITHUB_OUTPUT}
           fi
 
-      - name: 下载官方内核文件（获取最新版本）
+      - name: 尝试下载官方内核文件
         id: download_kernel
         working-directory: /builder
+        continue-on-error: true
         run: |
           mkdir -p openwrt/kernel
           echo "从官方仓库获取最新内核: ${{ inputs.kernel_repo }}"
@@ -219,8 +237,11 @@ jobs:
             KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases" | jq -r '.[] | .tag_name' | head -n 1)
           fi
           
-          if [ -z "$KERNEL_TAG" ] || [ "$KERNEL_TAG" = "null" ]; then
-            echo "错误：未找到官方内核"
+          # 过滤掉非版本标签（如tools）
+          if [[ "$KERNEL_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+            echo "找到有效内核版本: $KERNEL_TAG"
+          else
+            echo "获取的标签不是有效内核版本: $KERNEL_TAG"
             exit 1
           fi
           
@@ -243,13 +264,72 @@ jobs:
           echo "status=success" >> ${GITHUB_OUTPUT}
           echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
 
+      - name: 准备内核编译环境
+        id: prepare_compile
+        if: ${{ steps.download_kernel.outputs.status != 'success' }}
+        run: |
+          echo "官方内核下载失败，准备编译内核..."
+          # 安装内核编译依赖
+          sudo apt-get update -y
+          sudo apt-get install -y $(curl -fsSL https://tinyurl.com/ubuntu2204-build-armbian)
+          sudo systemctl daemon-reload
+          # 创建编译目录
+          mkdir -p /builder/kernel /builder/kernel_output
+          # 设置内核版本（如果用户指定了版本）
+          if [ "${{ inputs.openwrt_kernel }}" != "latest" ]; then
+            echo "指定内核版本: ${{ inputs.openwrt_kernel }}"
+            echo "kernel_version=${{ inputs.openwrt_kernel }}" >> ${GITHUB_OUTPUT}
+          else
+            echo "使用默认内核版本: 6.12.y"
+            echo "kernel_version=6.12.y" >> ${GITHUB_OUTPUT}
+          fi
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: 编译内核
+        id: compile_kernel
+        if: ${{ steps.prepare_compile.outputs.status == 'success' }}
+        uses: ophub/amlogic-s9xxx-armbian@main
+        with:
+          build_target: kernel
+          kernel_source: ${{ inputs.kernel_source }}
+          kernel_version: ${{ steps.prepare_compile.outputs.kernel_version }}
+          kernel_auto: true
+          delete_source: true
+          kernel_package: all
+          kernel_sign: -ophub
+          kernel_toolchain: ${{ inputs.kernel_toolchain }}
+          compress_format: xz
+          silent_log: false
+
+      - name: 处理编译好的内核
+        id: handle_compiled_kernel
+        if: ${{ steps.compile_kernel.outputs.status == 'success' }}
+        working-directory: /builder
+        run: |
+          echo "内核编译成功，处理内核文件..."
+          # 复制编译好的内核到工作目录
+          mkdir -p openwrt/kernel
+          cp -r ${{ env.PACKAGED_OUTPUTPATH }}/* openwrt/kernel/
+          # 获取编译的内核版本
+          KERNEL_TAG=$(ls openwrt/kernel/*.tar.gz | head -n 1 | xargs basename | sed 's/\.tar\.gz//')
+          echo "编译的内核版本: $KERNEL_TAG"
+          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
+
       - name: 检测内核中的驱动支持
         id: check_kernel
-        if: ${{ steps.download_kernel.outputs.status }} == 'success'
         run: |
-          KERNEL_DIR="/builder/openwrt/kernel"
+          # 确定内核目录
+          if [ "${{ steps.download_kernel.outputs.status }}" = "success" ]; then
+            KERNEL_DIR="/builder/openwrt/kernel"
+            KERNEL_TAG="${{ steps.download_kernel.outputs.kernel_tag }}"
+          else
+            KERNEL_DIR="/builder/openwrt/kernel"
+            KERNEL_TAG="${{ steps.handle_compiled_kernel.outputs.kernel_tag }}"
+          fi
+          
           echo "===== 检测内核中的驱动支持 ====="
-          echo "当前使用的内核版本: ${{ steps.download_kernel.outputs.kernel_tag }}"
+          echo "当前使用的内核版本: $KERNEL_TAG"
           
           # 检查内核模块中的USB驱动
           kernel_drivers=(
@@ -269,6 +349,7 @@ jobs:
           if [ "$kernel_support" = true ]; then
             echo "内核检测通过：包含必要驱动"
             echo "kernel_status=success" >> ${GITHUB_OUTPUT}
+            echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
           else
             echo "错误：内核缺失关键驱动，无法继续"
             echo "kernel_status=failure" >> ${GITHUB_OUTPUT}
@@ -406,7 +487,7 @@ jobs:
         with:
           openwrt_path: /builder/openwrt/rootfs
           openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tag }}  # 使用实际下载的内核版本
+          openwrt_kernel: ${{ steps.check_kernel.outputs.kernel_tag }}  # 使用实际内核版本
           kernel_repo: ${{ inputs.kernel_repo }}
           target_arch: ${{ env.TARGET_ARCH }}
           debug: false
@@ -414,6 +495,6 @@ jobs:
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.download_kernel.outputs.kernel_tag }}
+          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.check_kernel.outputs.kernel_tag }}
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
