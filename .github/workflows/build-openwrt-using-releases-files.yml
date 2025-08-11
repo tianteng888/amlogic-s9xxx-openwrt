@@ -319,9 +319,23 @@ jobs:
           curl -fsSL "${ROOTFS_URL}" -o "${armsr_tarfile_path}/${openwrt_filename}"
           [[ "${?}" -ne "0" ]] && echo "rootfs下载失败: ${ROOTFS_URL}" && exit 1
 
-          # 解压rootfs到临时目录
+          # 解压rootfs（移除--strip-components避免路径错误）
           mkdir -p ${ROOTFS_MOUNT}
-          tar -zxf "${armsr_tarfile_path}/${openwrt_filename}" -C ${ROOTFS_MOUNT} --strip-components=1
+          tar -zxf "${armsr_tarfile_path}/${openwrt_filename}" -C ${ROOTFS_MOUNT}
+          
+          # 检查解压后的目录结构，修正可能的路径偏移
+          if [ -d "${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs" ]; then
+              # 如果存在顶层目录，移动内容到目标路径
+              mv ${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs/* ${ROOTFS_MOUNT}/
+              rmdir ${ROOTFS_MOUNT}/immortalwrt-24.10.2-armsr-armv8-rootfs
+          fi
+
+          # 验证opkg是否存在
+          if [ ! -f "${OPKG}" ]; then
+              echo "解压后未找到opkg，检查目录结构："
+              ls -la ${ROOTFS_MOUNT}/usr/bin
+              echo "错误: rootfs中未找到opkg" && exit 1
+          fi
 
           echo "build_tag=OpenWrt_${TAGS_NAME}_${{ inputs.openwrt_board }}_$(date +"%Y%m%d")" >> ${GITHUB_OUTPUT}
           df -hT ${PWD}
@@ -332,7 +346,7 @@ jobs:
       - name: Configure opkg and install USB Ethernet drivers
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         run: |
-          # 验证rootfs中的opkg
+          # 再次验证rootfs中的opkg
           if [ ! -f "${OPKG}" ]; then
             echo "错误: rootfs中未找到opkg" && exit 1
           fi
