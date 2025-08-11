@@ -1,6 +1,5 @@
 #=====================================================================================
-# https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build ImmortalWrt 24.10.2 for s905l3a with dual kernels
+# 彻底移除 opkg-utils 依赖，仅使用 rootfs 内置 opkg
 #=====================================================================================
 
 name: Build ImmortalWrt 24.10.2 for s905l3a
@@ -9,67 +8,48 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      source_branch:
-        description: "Select the source branch"
-        required: false
-        default: "immortalwrt"
-        type: choice
-        options:
-          - immortalwrt  # 仅保留immortalwrt源码
       openwrt_board:
-        description: "Select device board"
+        description: "设备型号"
         required: false
         default: "s905l3a"
         type: choice
         options:
-          - s905l3a  # 仅保留目标设备
+          - s905l3a
       openwrt_kernel:
-        description: "Select kernel version"
+        description: "内核版本"
         required: false
         default: "6.1.147_6.12.41-flippy-93+"
         type: choice
         options:
-          - 6.1.147_6.12.41-flippy-93+  # 双内核组合
-      auto_kernel:
-        description: "Auto use the latest kernel"
-        required: false
-        default: false  # 禁用自动内核，固定版本
-        type: boolean
-      kernel_repo:
-        description: "Set the kernel repository"
-        required: false
-        default: "tianteng888/flippy-kernels"  # 指定flippy内核仓库
-        type: choice
-        options:
-          - tianteng888/flippy-kernels
-          - ophub/kernel
-      kernel_usage:
-        description: "Set the tags of the kernel"
-        required: false
-        default: "neih"  # 对应flippy内核的tag
-        type: choice
-        options:
-          - neih
-          - stable
-      openwrt_storage:
-        description: "Select image storage type."
-        required: false
-        default: "save"
-        type: choice
-        options:
-          - save
-          - temp
-      builder_name:
-        description: "Set OpenWrt builder signature."
-        required: false
-        default: "custom-builder"
-        type: choice
-        options:
-          - custom-builder
-          - ophub
+          - 6.1.147_6.12.41-flippy-93+
 
 env:
   TZ: Asia/Shanghai
-  # 固定版本资源地址（完整URL）
-  IMMORTALWRT_VERSION: "24.10.2"
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
+  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic/"
+  REQUIRED_DRIVERS: "kmod-usb-net kmod-usb-net-rtl8152 kmod-usb-net-rtl8153 kmod-usb-net-cdc-ether kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-rtl8812au kmod-usb-net-rtl88x2bu"
+  MANAGE_IP: "192.168.11.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 基础环境准备
+        run: |
+          # 仅保留必要工具
+          sudo apt-get update -y
+          sudo apt-get install -y curl wget tar gzip lz4 cpio kmod
+          sudo apt-get clean
+
+      - name: 下载并处理 RootFS
+        run: |
+          # 创建工作目录
+          mkdir -p openwrt/output
+          cd openwrt/output
+
+          # 下载 RootFS
+          wget -q --show-progress "${ROOTFS_URL}" -O rootfs.tar.gz
+          mkdir rootfs && tar -zxf rootfs.tar.gz -C rootfs
+
+          # 修改软件源（使用内置 opkg）
+          cat > rootfs/etc/opkg/distfeeds.conf <<
