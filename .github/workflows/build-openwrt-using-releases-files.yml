@@ -73,7 +73,7 @@ env:
   # 固定版本资源地址
   IMMORTALWRT_VERSION: "24.10.2"
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packagesaarch64_generic/"  # 确保架构正确
+  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic/"  # 修复路径拼写错误（packages后添加/）
   # 必需的USB网卡驱动包（覆盖常见芯片型号）
   REQUIRED_DRIVERS: "kmod-usb-net kmod-usb-net-rtl8152 kmod-usb-net-rtl8153 kmod-usb-net-cdc-ether kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-rtl8812au kmod-usb-net-rtl88x2bu"
   # 编译依赖保障（确保opkg工具链完整）
@@ -101,6 +101,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
           sudo swapoff -a
           sudo rm -f /swapfile /mnt/swapfile
+
+          # 启用universe软件源（解决opkg-utils找不到的问题）
+          sudo add-apt-repository universe -y
 
           # 安装完整依赖（确保不缺失编译工具）
           sudo -E apt-get -y update
