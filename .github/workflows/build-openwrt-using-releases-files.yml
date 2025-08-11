@@ -73,11 +73,13 @@ env:
   # 固定版本资源地址
   IMMORTALWRT_VERSION: "24.10.2"
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic/"  # 确保架构正确
+  PACKAGES_REPO: "https://downloads.immortalwrt.org/releases/24.10.2/packagesaarch64_generic/"  # 确保架构正确
   # 必需的USB网卡驱动包（覆盖常见芯片型号）
   REQUIRED_DRIVERS: "kmod-usb-net kmod-usb-net-rtl8152 kmod-usb-net-rtl8153 kmod-usb-net-cdc-ether kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-usb-net-rtl8812au kmod-usb-net-rtl88x2bu"
   # 编译依赖保障（确保opkg工具链完整）
   BUILD_DEPENDS: "opkg-utils curl wget tar gzip lz4 cpio kmod"
+  # 管理地址设置
+  MANAGE_IP: "192.168.11.1"
 
 jobs:
   build:
@@ -155,13 +157,14 @@ jobs:
           echo "build_tag=ImmortalWrt_24.10.2_s905l3a_dual-kernel_$(date +"%Y%m%d")" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Modify opkg sources (ensure aarch64_generic & opkg format)
+      - name: Modify opkg sources and network settings
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         working-directory: /builder/openwrt/output
         run: |
           # 解压rootfs
           mkdir -p rootfs
           tar -zxf immortalwrt-24.10.2-rootfs.tar.gz -C rootfs
+          
           # 清除原有源配置，替换为指定版本的aarch64_generic仓库
           cat > rootfs/etc/opkg/distfeeds.conf << EOF
           src/gz immortalwrt_core ${PACKAGES_REPO}core
@@ -171,6 +174,39 @@ jobs:
           src/gz immortalwrt_routing ${PACKAGES_REPO}routing
           src/gz immortalwrt_telephony ${PACKAGES_REPO}telephony
           EOF
+          
+          # 修改管理地址为${MANAGE_IP}
+          echo "Changing management IP to ${MANAGE_IP}"
+          if [ -f "rootfs/etc/config/network" ]; then
+            # 替换lan接口的ip地址
+            sed -i "s/option ipaddr '192.168.1.1'/option ipaddr '${MANAGE_IP}'/" rootfs/etc/config/network
+            # 验证修改结果
+            if grep -q "option ipaddr '${MANAGE_IP}'" rootfs/etc/config/network; then
+              echo "Successfully set management IP to ${MANAGE_IP}"
+            else
+              echo "Failed to set management IP"
+              exit 1
+            fi
+          else
+            echo "Network config file not found, creating new one"
+            # 若网络配置文件不存在则创建
+            mkdir -p rootfs/etc/config
+            cat > rootfs/etc/config/network << EOF
+            config interface 'loopback'
+                option device 'lo'
+                option proto 'static'
+                option ipaddr '127.0.0.1'
+                option netmask '255.0.0.0'
+
+            config interface 'lan'
+                option device 'br-lan'
+                option proto 'static'
+                option ipaddr '${MANAGE_IP}'
+                option netmask '255.255.255.0'
+                option ip6assign '60'
+            EOF
+          fi
+          
           # 验证源配置正确性
           if ! grep -q "aarch64_generic" rootfs/etc/opkg/distfeeds.conf; then
             echo "Failed to set correct aarch64_generic repository"
@@ -200,7 +236,7 @@ jobs:
               exit 1
             fi
           done
-          # 重新打包rootfs（包含已安装的驱动）
+          # 重新打包rootfs（包含已安装的驱动和修改的配置）
           rm -f immortalwrt-24.10.2-rootfs.tar.gz
           tar -zcf immortalwrt-24.10.2-rootfs.tar.gz -C rootfs .
 
@@ -233,6 +269,6 @@ jobs:
             - Kernel versions: 6.1.147 & 6.12.41-flippy-93+
             - Pre-installed USB network drivers: ${{ env.REQUIRED_DRIVERS }}
             - Software repository: ${{ env.PACKAGES_REPO }} (aarch64_generic, opkg format)
-            - Default IP: 192.168.1.1
+            - Default IP: ${{ env.MANAGE_IP }}
             - Default credentials: root / password
             - Note: Drivers are pre-loaded for both kernels to avoid missing after kernel switch
