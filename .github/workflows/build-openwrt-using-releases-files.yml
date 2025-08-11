@@ -1,6 +1,6 @@
 #=====================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build OpenWrt using releases files (fixed XFS mount error)
+# Description: Build OpenWrt using releases files (fixed opkg lock file error)
 #=====================================================================================
 
 name: Build OpenWrt using releases files
@@ -78,11 +78,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Initialization environment (with XFS support)
+      - name: Initialization environment
         id: init
         run: |
           sudo apt-get update -y
-          # 安装XFS文件系统工具（关键修复）
           sudo apt-get install -y curl wget tar gzip xz-utils unzip build-essential \
             qemu-user-static binfmt-support pv lvm2 xfsprogs
           sudo update-binfmts --enable qemu-aarch64
@@ -90,36 +89,23 @@ jobs:
           sudo timedatectl set-timezone "${TZ}"
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Create simulated disk (fixed XFS mount)
+      - name: Create simulated disk
         run: |
-          # 计算可用空间（优化正则表达式，只保留数字）
           mnt_size=$(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
           root_size=$(df -h / | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
-          # 确保空间计算不为空
-          mnt_size=$(( mnt_size > 0 ? mnt_size - 1 : 10 ))  # 至少保留10G
+          mnt_size=$(( mnt_size > 0 ? mnt_size - 1 : 10 ))
           root_size=$(( root_size > 0 ? root_size - 4 : 20 ))
           
-          # 创建磁盘镜像
           sudo truncate -s "${mnt_size}"G /mnt/mnt.img
           sudo truncate -s "${root_size}"G /root.img
-          
-          # 关联到loop设备
           sudo losetup /dev/loop6 /mnt/mnt.img
           sudo losetup /dev/loop7 /root.img
-          
-          # 创建LVM逻辑卷
           sudo pvcreate /dev/loop6 /dev/loop7
           sudo vgcreate github /dev/loop6 /dev/loop7
           sudo lvcreate -n runner -l 100%FREE github
-          
-          # 格式化XFS文件系统（添加兼容性选项）
           sudo mkfs.xfs -f -i size=512 /dev/github/runner
-          
-          # 创建挂载点并挂载（移除不兼容的uid/gid选项）
           sudo mkdir -p /builder
-          # XFS不支持uid/gid挂载选项，使用默认选项
           sudo mount -o defaults /dev/github/runner /builder
-          # 修复目录权限
           sudo chmod 777 /builder
 
       - name: Download & verify rootfs
@@ -139,6 +125,10 @@ jobs:
             sudo mv openwrt/rootfs/$rootfs_contents/* openwrt/rootfs/
             sudo rmdir openwrt/rootfs/$rootfs_contents
           fi
+          
+          # 提前创建opkg所需的目录结构
+          sudo mkdir -p openwrt/rootfs/var/lock
+          sudo chmod -R 777 openwrt/rootfs/var
           
           OPKG_PATH=$(sudo find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
           if [ -z "$OPKG_PATH" ]; then
@@ -167,7 +157,7 @@ jobs:
           src/gz immortalwrt_telephony https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_cortex-a53/telephony
           EOF
 
-      - name: Install USB Ethernet drivers
+      - name: Install USB Ethernet drivers (fixed opkg lock)
         if: ${{ steps.download_rootfs.outputs.status }} == 'success'
         run: |
           ROOTFS_DIR="/builder/openwrt/rootfs"
@@ -177,6 +167,10 @@ jobs:
           sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
           sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
           
+          # 关键修复：确保锁文件目录存在且可写
+          sudo chroot $ROOTFS_DIR /bin/sh -c "mkdir -p /var/lock && chmod 777 /var/lock"
+          
+          # 执行opkg命令
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update"
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install \
             kmod-usb-net kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 \
