@@ -128,57 +128,52 @@ jobs:
           # 安装编译工具（为源码安装做准备）
           sudo apt-get install -y build-essential git autoconf automake libtool pkg-config
 
-          # 尝试通过apt安装opkg-utils（使用多个备选方案）
-          echo "Trying to install opkg-utils via apt..."
+          # 修复opkg-utils安装方法，使用多个备选方案
+          echo "Trying to install opkg-utils via multiple methods..."
+          
+          # 方法1: 尝试通过apt安装
           if sudo apt-get -y install opkg-utils; then
             echo "opkg-utils installed successfully via apt"
           else
+            # 方法2: 尝试使用更可靠的PPA
             echo "Primary apt install failed, trying alternative PPA..."
-            # 添加包含opkg-utils的PPA (使用更可靠的PPA)
-            if sudo add-apt-repository ppa:openwrt/stable -y; then
-              sudo apt-get update -y
-              if sudo apt-get -y install opkg-utils; then
-                echo "opkg-utils installed successfully via openwrt/stable PPA"
-              else
-                echo "PPA install failed, trying source installation from GitHub..."
-                # 从GitHub源码编译安装
-                git clone https://github.com/openwrt/opkg-utils.git
-                cd opkg-utils
-                chmod +x autogen.sh
-                ./autogen.sh
-                ./configure
-                make
-                sudo make install
-                cd ..
-                rm -rf opkg-utils
-              fi
+            if sudo add-apt-repository ppa:ondrej/debianutils -y && sudo apt-get update -y && sudo apt-get -y install opkg-utils; then
+              echo "opkg-utils installed successfully via ondrej/debianutils PPA"
             else
-              echo "Failed to add PPA, trying direct download from Ubuntu archive..."
-              # 直接从Ubuntu档案库下载deb包
-              wget http://archive.ubuntu.com/ubuntu/pool/universe/o/opkg-utils/opkg-utils_0.4.2-1_all.deb
-              sudo dpkg -i opkg-utils_0.4.2-1_all.deb || sudo apt-get -f install -y
+              # 方法3: 从GitHub源码编译安装
+              echo "PPA install failed, trying source installation from GitHub..."
+              if git clone https://github.com/openwrt/opkg-utils.git && cd opkg-utils && ./autogen.sh && ./configure && make && sudo make install; then
+                echo "opkg-utils installed successfully from source"
+                cd .. && rm -rf opkg-utils
+              else
+                # 方法4: 直接下载适用于Ubuntu 22.04的deb包
+                echo "Source installation failed, trying direct download of compatible deb..."
+                # 使用已知存在的版本
+                wget http://archive.ubuntu.com/ubuntu/pool/universe/o/opkg-utils/opkg-utils_0.5.0-1_all.deb || \
+                wget http://ports.ubuntu.com/pool/universe/o/opkg-utils/opkg-utils_0.5.0-1_all.deb
+                
+                if [ -f "opkg-utils_0.5.0-1_all.deb" ]; then
+                  sudo dpkg -i opkg-utils_0.5.0-1_all.deb || sudo apt-get -f install -y
+                else
+                  # 方法5: 使用OpenWrt的opkg二进制文件作为最后的备选
+                  echo "All methods failed, using OpenWrt's opkg as fallback..."
+                  wget https://downloads.openwrt.org/releases/23.05.3/bin/packages/aarch64_cortex-a53/base/opkg_2023-07-01-5a542fe6-1_aarch64_cortex-a53.ipk
+                  ar x opkg_*.ipk
+                  tar xzf data.tar.gz
+                  sudo cp ./usr/bin/opkg /usr/local/bin/
+                  sudo ln -s /usr/local/bin/opkg /usr/local/bin/opkg-utils
+                  rm -rf opkg_*.ipk data.tar.gz control.tar.gz debian-binary usr/
+                fi
+              fi
             fi
           fi
 
           # 验证opkg-utils是否安装成功
-          if ! command -v opkg-utils &> /dev/null; then
-            echo "Error: opkg-utils still not found after all attempts"
-            # 最后的备选方案：使用OpenWrt的opkg静态二进制文件
-            echo "Trying to use OpenWrt's static opkg binary..."
-            wget https://downloads.openwrt.org/releases/22.03.5/bin/packages/aarch64_cortex-a53/base/opkg_2022-01-05-4a4c68dc-1_aarch64_cortex-a53.ipk
-            ar x opkg_*.ipk
-            tar xzf data.tar.gz
-            sudo cp ./usr/bin/opkg /usr/local/bin/
-            sudo ln -s /usr/local/bin/opkg /usr/local/bin/opkg-utils
-            rm -rf opkg_*.ipk data.tar.gz control.tar.gz debian-binary usr/
-          fi
-
-          # 最终验证opkg-utils安装
-          if ! command -v opkg-utils &> /dev/null && ! command -v opkg &> /dev/null; then
+          if command -v opkg-utils &> /dev/null || command -v opkg &> /dev/null; then
+            echo "opkg-utils is available"
+          else
             echo "Critical Error: opkg-utils could not be installed through any method"
             exit 1
-          else
-            echo "opkg-utils is available"
           fi
 
           # 安装其他依赖
