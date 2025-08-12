@@ -1,6 +1,6 @@
 #=====================================================================================
 # 适配s905l3a (aarch64_generic)架构的OpenWrt构建工作流
-# 说明：使用指定内核和晶晨宝盒IPK文件进行构建，修复依赖错误
+# 说明：修复参数错误和路径问题，使用动作支持的有效参数
 #=====================================================================================
 
 name: Build OpenWrt for s905l3a with fixed kernel
@@ -17,7 +17,6 @@ on:
           - s905l3a
           - s905l3a-cm311
           - s905l3a-m401a
-      # 允许指定具体内核版本，默认为6.12.41
       specific_kernel:
         description: "具体内核版本"
         required: true
@@ -44,7 +43,6 @@ env:
   ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
   TARGET_ARCH: "aarch64_generic"
   PACKAGE_REPO_BASE: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic"
-  # 晶晨宝盒指定版本IPK链接
   AMLOGIC_IPK_URL: "https://github.com/ophub/luci-app-amlogic/releases/download/3.1.266/luci-app-amlogic_3.1.266_all.ipk"
   AMLOGIC_I18N_IPK_URL: "https://github.com/ophub/luci-app-amlogic/releases/download/3.1.266/luci-i18n-amlogic-zh-cn_3.1.266_all.ipk"
 
@@ -97,6 +95,8 @@ jobs:
           sudo mkdir -p /builder
           sudo mount -o defaults /dev/github/runner /builder
           sudo chmod 777 /builder
+          # 记录工作目录路径
+          echo "BUILDER_PATH=/builder" >> $GITHUB_ENV
 
       - name: 下载并验证rootfs
         id: download_rootfs
@@ -140,6 +140,8 @@ jobs:
           fi
           sudo chmod +x "$OPKG_PATH"
           
+          # 保存rootfs路径到环境变量
+          echo "ROOTFS_FULL_PATH=$(realpath openwrt/rootfs)" >> $GITHUB_ENV
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
@@ -148,7 +150,6 @@ jobs:
         working-directory: /builder
         run: |
           mkdir -p openwrt/kernel
-          # 使用用户指定的内核版本和链接
           KERNEL_VERSION="${{ inputs.specific_kernel }}"
           KERNEL_REPO="${{ inputs.kernel_repo }}"
           KERNEL_TAG="${{ inputs.kernel_tag }}"
@@ -156,31 +157,27 @@ jobs:
           
           echo "使用指定内核链接: ${KERNEL_URL}"
           
-          # 下载内核
           if ! sudo wget -c "${KERNEL_URL}" -O "openwrt/kernel/${KERNEL_VERSION}.tar.gz"; then
             echo "错误：内核 ${KERNEL_VERSION} 下载失败"
             echo "请检查链接是否正确: ${KERNEL_URL}"
             exit 1
           fi
           
-          # 验证文件存在性
           if [ ! -f "openwrt/kernel/${KERNEL_VERSION}.tar.gz" ]; then
             echo "错误：内核文件 ${KERNEL_VERSION}.tar.gz 不存在"
             exit 1
           fi
           
-          # 解压内核
           sudo mkdir -p "openwrt/kernel/${KERNEL_VERSION}"
           sudo tar -zxf "openwrt/kernel/${KERNEL_VERSION}.tar.gz" -C "openwrt/kernel/${KERNEL_VERSION}"
           
-          # 输出内核版本
           echo "status=success" >> ${GITHUB_OUTPUT}
           echo "kernel_tags=${KERNEL_VERSION}" >> ${GITHUB_OUTPUT}
 
       - name: 配置opkg源
         if: ${{ steps.download_rootfs.outputs.status == 'success' && steps.download_kernel.outputs.status == 'success' }}
         run: |
-          OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
+          OPKG_CONF="${{ env.ROOTFS_FULL_PATH }}/etc/opkg/distfeeds.conf"
           sudo mkdir -p $(dirname $OPKG_CONF)
           
           sudo tee $OPKG_CONF << EOF
@@ -190,14 +187,13 @@ jobs:
           src/gz immortalwrt_packages ${PACKAGE_REPO_BASE}/packages
           src/gz immortalwrt_routing ${PACKAGE_REPO_BASE}/routing
           src/gz immortalwrt_telephony ${PACKAGE_REPO_BASE}/telephony
-          # 添加额外的软件源以解决依赖问题
           src/gz openwrt_kernel https://downloads.openwrt.org/releases/23.05.0/targets/armsr/armv8/packages
           EOF
 
       - name: 安装晶晨宝盒（使用指定IPK文件）
         if: ${{ steps.download_rootfs.outputs.status == 'success' && steps.download_kernel.outputs.status == 'success' }}
         run: |
-          ROOTFS_DIR="/builder/openwrt/rootfs"
+          ROOTFS_DIR="${{ env.ROOTFS_FULL_PATH }}"
           
           # 挂载必要的系统目录
           sudo mount -o bind /dev $ROOTFS_DIR/dev
@@ -231,7 +227,7 @@ jobs:
             exit 1
           fi
           
-          # 更新包列表（解决依赖问题）
+          # 更新包列表
           echo "更新opkg包列表..."
           retry=3
           while [ $retry -gt 0 ]; do
@@ -247,7 +243,7 @@ jobs:
             exit 1
           fi
           
-          # 安装必要依赖（移除不存在的kmod-drm和kmod-fb，添加错误继续执行选项）
+          # 安装必要依赖
           echo "安装依赖包..."
           if ! sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate \
             luci-compat \
@@ -261,12 +257,12 @@ jobs:
             echo "警告：部分依赖包安装失败，继续执行后续步骤"
           fi
           
-          # 尝试安装可能的替代内核模块
+          # 尝试安装替代内核模块
           echo "尝试安装替代显示模块..."
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate kmod-fbdev || true"
           sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate kmod-drm-amlogic || true"
           
-          # 安装晶晨宝盒主程序（添加--force-depends忽略依赖问题）
+          # 安装晶晨宝盒主程序
           echo "安装晶晨宝盒主程序..."
           if ! sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate --force-depends /tmp/amlogic/luci-app-amlogic.ipk"; then
             echo "错误：晶晨宝盒主程序安装失败"
@@ -295,12 +291,14 @@ jobs:
         if: ${{ steps.download_rootfs.outputs.status == 'success' && steps.download_kernel.outputs.status == 'success' }}
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
-          openwrt_path: /builder/openwrt/rootfs
+          mode: ophub
+          openwrt_path: ${{ env.ROOTFS_FULL_PATH }}  # 使用正确的rootfs路径
           openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tags }}
           kernel_repo: ${{ inputs.kernel_repo }}
-          target_arch: ${{ env.TARGET_ARCH }}
-          debug: false
+          kernel_usage: stable
+          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tags }}
+          auto_kernel: true
+          # 移除不支持的参数：target_arch和debug
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -308,3 +306,4 @@ jobs:
           name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.download_kernel.outputs.kernel_tags }}
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
+    
