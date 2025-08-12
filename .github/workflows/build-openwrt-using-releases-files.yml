@@ -1,6 +1,6 @@
 #=====================================================================================
 # 适配s905l3a (aarch64_generic)架构的OpenWrt构建工作流
-# 说明：修复参数错误和路径问题，使用动作支持的有效参数
+# 说明：修复文件路径引用错误，确保rootfs能正确复制到构建环境
 #=====================================================================================
 
 name: Build OpenWrt for s905l3a with fixed kernel
@@ -72,6 +72,9 @@ jobs:
           fi
           
           sudo timedatectl set-timezone "${TZ}"
+          # 显示工作目录路径用于调试
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          echo "当前目录内容: $(ls -lh)"
 
       - name: 创建并挂载虚拟磁盘
         run: |
@@ -142,6 +145,19 @@ jobs:
           
           # 保存rootfs路径到环境变量
           echo "ROOTFS_FULL_PATH=$(realpath openwrt/rootfs)" >> $GITHUB_ENV
+          # 复制到GITHUB_WORKSPACE以解决路径问题
+          echo "将rootfs复制到工作目录: ${GITHUB_WORKSPACE}/openwrt-rootfs"
+          sudo mkdir -p ${GITHUB_WORKSPACE}/openwrt-rootfs
+          sudo cp -rf $(realpath openwrt/rootfs)/* ${GITHUB_WORKSPACE}/openwrt-rootfs/
+          sudo chmod -R 777 ${GITHUB_WORKSPACE}/openwrt-rootfs
+          
+          # 验证复制结果
+          echo "验证工作目录中的rootfs: $(ls -lh ${GITHUB_WORKSPACE}/openwrt-rootfs)"
+          if [ -z "$(ls -A ${GITHUB_WORKSPACE}/openwrt-rootfs 2>/dev/null)" ]; then
+            echo "错误：rootfs复制到工作目录失败"
+            exit 1
+          fi
+          
           echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
@@ -292,13 +308,23 @@ jobs:
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
           mode: ophub
-          openwrt_path: ${{ env.ROOTFS_FULL_PATH }}  # 使用正确的rootfs路径
+          # 使用相对路径而非绝对路径，解决动作脚本路径拼接问题
+          openwrt_path: "openwrt-rootfs"
           openwrt_board: ${{ inputs.openwrt_board }}
           kernel_repo: ${{ inputs.kernel_repo }}
           kernel_usage: stable
           openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tags }}
           auto_kernel: true
-          # 移除不支持的参数：target_arch和debug
+
+      - name: 显示构建结果（调试用）
+        if: always()
+        run: |
+          echo "构建输出路径: ${{ env.PACKAGED_OUTPUTPATH }}"
+          if [ -d "${{ env.PACKAGED_OUTPUTPATH }}" ]; then
+            echo "输出目录内容: $(ls -lh ${{ env.PACKAGED_OUTPUTPATH }})"
+          else
+            echo "输出目录不存在"
+          fi
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
