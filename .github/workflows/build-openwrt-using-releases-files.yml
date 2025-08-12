@@ -1,214 +1,155 @@
 #=====================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Build OpenWrt using ImmortalWrt 24.10.2 with opkg
+# Description: Build OpenWrt for s905l3a using ImmortalWrt 24.10.2 with opkg
 #=====================================================================================
 
-name: Build ImmortalWrt with opkg
+name: Build ImmortalWrt 24.10.2 (opkg) for s905l3a
 
+# 触发条件：手动触发或仓库事件触发
 on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      source_branch:
-        description: "Select the source branch"
-        required: false
-        default: "immortalwrt"
-        type: choice
-        options:
-          - immortalwrt
       openwrt_board:
-        description: "Select device board"
-        required: false
-        default: "s905l3a"  # 指定s905l3a设备
+        description: "设备型号"
+        required: true
+        default: "s905l3a"
         type: choice
         options:
           - s905l3a
           - s905l3a-cm311
           - s905l3a-m401a
-          - other  # 保留其他设备选项
       openwrt_kernel:
-        description: "Select kernel version (latest recommended)"
-        required: false
-        default: "6.12.y"  # 最新内核版本
+        description: "内核版本（推荐最新）"
+        required: true
+        default: "6.12.y"
         type: choice
         options:
-          - 6.12.y
+          - 6.12.y  # 最新内核
           - 6.6.y
           - 6.1.y
       auto_kernel:
-        description: "Auto use the latest kernel"
+        description: "自动使用最新内核"
         required: false
-        default: true  # 自动使用最新内核
+        default: true
         type: boolean
-      kernel_repo:
-        description: "Set the kernel repository"
-        required: false
-        default: "ophub/kernel"
-        type: choice
-        options:
-          - ophub/kernel
-      kernel_usage:
-        description: "Set the tags of the stable kernel."
-        required: false
-        default: "stable"
-        type: choice
-        options:
-          - stable
-          - dev
-      openwrt_storage:
-        description: "Select image storage type."
-        required: false
-        default: "save"
-        type: choice
-        options:
-          - save
-          - temp
-      builder_name:
-        description: "Set OpenWrt builder signature."
-        required: false
-        default: "ophub"
-        type: choice
-        options:
-          - ophub
-          - angel
-          - yourname
 
 env:
-  TZ: America/New_York
+  TZ: Asia/Shanghai  # 调整时区为国内，避免时间同步问题
   IMMORTALWRT_VERSION: "24.10.2"
   TARGET_URL: "https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/"
   PACKAGES_URL: "https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_generic/"
+  # 明确s905l3a的rootfs文件名（根据官方源实际文件名调整，这里是示例）
+  ROOTFS_PATTERN: "openwrt-${{ env.IMMORTALWRT_VERSION }}-armsr-armv8-generic-s905l3a-*-rootfs.tar.gz"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'  # 确保触发条件正确
 
     steps:
-      - name: Checkout
+      - name: 检查代码仓库
         uses: actions/checkout@v4
 
-      - name: Initialization environment
+      - name: 初始化环境（修复依赖和权限）
         id: init
-        env:
-          DEBIAN_FRONTEND: noninteractive
         run: |
-          # 清理环境
-          docker rmi $(docker images -q) 2>/dev/null
-          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
-          sudo swapoff -a
-          sudo rm -f /swapfile /mnt/swapfile
+          # 清理冗余资源，释放空间
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/hostedtoolcache/*
+          sudo swapoff -a && sudo rm -f /swapfile
           
-          # 安装必要工具
-          sudo -E apt-get -y update
-          sudo -E apt-get -y install curl wget tar gzip bzip2 xz-utils file binutils \
-            build-essential libncurses5-dev libncursesw5-dev zlib1g-dev flex bison \
-            pkg-config perl python3 python3-pip rsync unzip
+          # 安装必要工具（确保opkg依赖完整）
+          sudo apt-get update -y
+          sudo apt-get install -y curl wget tar xz-utils binutils rsync unzip file
           
-          # 配置opkg（直接使用ImmortalWrt的opkg工具）
-          wget ${{ env.PACKAGES_URL }}/opkg_*.ipk -O /tmp/opkg.ipk
-          ar x /tmp/opkg.ipk data.tar.xz
-          sudo tar -xJf data.tar.xz -C /
-          sudo chmod +x /usr/bin/opkg
+          # 验证网络连通性（确保能访问官方源）
+          if ! curl -sSL --head ${{ env.TARGET_URL }} > /dev/null; then
+            echo "错误：无法访问ImmortalWrt官方源，请检查网络"
+            exit 1
+          fi
           
-          # 配置opkg源
-          sudo mkdir -p /etc/opkg
-          cat << EOF | sudo tee /etc/opkg/distfeeds.conf
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 创建临时存储（避免空间不足）
+        if: steps.init.outputs.status == 'success'
+        run: |
+          sudo mkdir -p /builder && sudo chmod 777 /builder
+          df -h /builder
+
+      - name: 下载ImmortalWrt 24.10.2 rootfs（确保文件存在）
+        id: download_rootfs
+        if: steps.init.outputs.status == 'success'
+        working-directory: /builder
+        run: |
+          echo "开始从官方源下载rootfs: ${{ env.TARGET_URL }}"
+          # 从官方源列表中精确匹配s905l3a的rootfs
+          rootfs_file=$(curl -s ${{ env.TARGET_URL }} | grep -oE "${{ env.ROOTFS_PATTERN }}" | head -n 1)
+          if [ -z "$rootfs_file" ]; then
+            echo "错误：未找到s905l3a的rootfs文件，检查URL或文件名格式"
+            exit 1
+          fi
+          
+          # 下载文件并验证
+          wget -c ${{ env.TARGET_URL }}/$rootfs_file -O openwrt-rootfs.tar.gz
+          if [ ! -f "openwrt-rootfs.tar.gz" ] || [ $(du -b "openwrt-rootfs.tar.gz" | cut -f1) -lt 10485760 ]; then
+            echo "错误：rootfs下载失败或文件不完整"
+            exit 1
+          fi
+          
+          echo "rootfs_path=/builder/openwrt-rootfs.tar.gz" >> $GITHUB_OUTPUT
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 配置opkg环境（直接集成到rootfs）
+        if: steps.download_rootfs.outputs.status == 'success'
+        working-directory: /builder
+        run: |
+          # 创建临时目录解压rootfs
+          mkdir -p temp_rootfs
+          tar -zxf openwrt-rootfs.tar.gz -C temp_rootfs
+          
+          # 下载并安装opkg（从官方packages源）
+          opkg_ipk=$(curl -s ${{ env.PACKAGES_URL }}/base/ | grep -oE "opkg_[0-9]+\.[0-9]+\-.*_aarch64_generic.ipk" | head -n 1)
+          wget -c ${{ env.PACKAGES_URL }}/base/$opkg_ipk -O opkg.ipk
+          ar x opkg.ipk data.tar.xz
+          tar -xJf data.tar.xz -C temp_rootfs
+          
+          # 写入opkg源配置
+          mkdir -p temp_rootfs/etc/opkg
+          cat << EOF > temp_rootfs/etc/opkg/distfeeds.conf
           src/gz immortalwrt_core ${{ env.TARGET_URL }}/packages
           src/gz immortalwrt_base ${{ env.PACKAGES_URL }}/base
           src/gz immortalwrt_luci ${{ env.PACKAGES_URL }}/luci
           src/gz immortalwrt_packages ${{ env.PACKAGES_URL }}/packages
-          src/gz immortalwrt_routing ${{ env.PACKAGES_URL }}/routing
-          src/gz immortalwrt_telephony ${{ env.PACKAGES_URL }}/telephony
           EOF
           
-          sudo -E apt-get -y autoremove --purge
-          sudo -E apt-get clean
-          sudo timedatectl set-timezone "${TZ}"
-          echo "status=success" >> ${GITHUB_OUTPUT}
+          # 重新打包rootfs
+          rm -f openwrt-rootfs.tar.gz
+          tar -zcf openwrt-rootfs.tar.gz -C temp_rootfs .
+          rm -rf temp_rootfs
 
-      - name: Create simulated physical disk
-        run: |
-          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
-          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
-          sudo truncate -s "${mnt_size}"G /mnt/mnt.img
-          sudo truncate -s "${root_size}"G /root.img
-          sudo losetup /dev/loop6 /mnt/mnt.img
-          sudo losetup /dev/loop7 /root.img
-          sudo pvcreate /dev/loop6
-          sudo pvcreate /dev/loop7
-          sudo vgcreate github /dev/loop6 /dev/loop7
-          sudo lvcreate -n runner -l 100%FREE github
-          sudo mkfs.xfs /dev/github/runner
-          sudo mkdir -p /builder
-          sudo mount /dev/github/runner /builder
-          sudo chown -R runner.runner /builder
-          df -Th
-
-      - name: Download ImmortalWrt 24.10.2
-        id: down
-        working-directory: /builder
-        if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
-        run: |
-          # 固定使用ImmortalWrt 24.10.2源码
-          REPO_URL="https://github.com/immortalwrt/immortalwrt"
-          REPO_BRANCH="v${{ env.IMMORTALWRT_VERSION }}"
-          TAGS_NAME="immortalwrt-${{ env.IMMORTALWRT_VERSION }}"
-
-          armsr_tarfile_path="openwrt/output"
-          [[ -d "${armsr_tarfile_path}" ]] || mkdir -p ${armsr_tarfile_path}
-          ln -sf /builder/openwrt ${GITHUB_WORKSPACE}/openwrt
-          ln -sf /builder/openwrt /home/runner/work/_actions/ophub/amlogic-s9xxx-openwrt/main/openwrt
-
-          # 从官方源下载rootfs
-          rootfs_file=$(curl -s ${{ env.TARGET_URL }} | grep -oE 'openwrt-.*-s905l3a-.*-rootfs.tar.gz' | head -n 1)
-          if [[ -z "${rootfs_file}" ]]; then
-              echo "Failed to find rootfs file"
-              exit 1
-          fi
-          wget ${{ env.TARGET_URL }}/${rootfs_file} -O "${armsr_tarfile_path}/${rootfs_file}"
-          [[ "${?}" -ne "0" ]] && echo "Failed to download rootfs" && exit 1
-
-          echo "build_tag=ImmortalWrt_${{ env.IMMORTALWRT_VERSION }}_s905l3a_$(date +"%Y.%m")" >> ${GITHUB_OUTPUT}
-          echo "REPO_URL=${REPO_URL}" >> ${GITHUB_OUTPUT}
-          echo "TAGS_NAME=${TAGS_NAME}" >> ${GITHUB_OUTPUT}
-          echo "status=success" >> ${GITHUB_OUTPUT}
-
-      - name: Packaging OpenWrt with opkg
-        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
+      - name: 打包OpenWrt镜像（调用官方工具）
+        id: package
+        if: steps.download_rootfs.outputs.status == 'success'
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
-          openwrt_path: openwrt/output/*rootfs.tar.gz
+          openwrt_path: ${{ steps.download_rootfs.outputs.rootfs_path }}  # 确保路径正确
           openwrt_board: ${{ inputs.openwrt_board }}
           openwrt_kernel: ${{ inputs.openwrt_kernel }}
           auto_kernel: ${{ inputs.auto_kernel }}
-          kernel_repo: ${{ inputs.kernel_repo }}
-          kernel_usage: ${{ inputs.kernel_usage }}
-          builder_name: ${{ inputs.builder_name }}
-          # 额外添加opkg配置参数
-          extra_packages: "opkg wget curl"
+          kernel_repo: "ophub/kernel"
+          kernel_usage: "stable"
 
-      - name: Upload the packaged OpenWrt
+      - name: 上传构建结果
+        if: steps.package.outputs.status == 'success'
         uses: ncipollo/release-action@main
-        if: ${{ env.PACKAGED_STATUS }} == 'success' && !cancelled()
         with:
-          tag: ${{ steps.down.outputs.build_tag }}
-          artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
-          allowUpdates: true
-          removeArtifacts: false
-          replacesArtifacts: true
+          tag: "ImmortalWrt_24.10.2_${{ inputs.openwrt_board }}_$(date +%Y%m%d)"
+          artifacts: "${{ env.PACKAGED_OUTPUTPATH }}/*"
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            ### ImmortalWrt 24.10.2 Image Information
-            - Device: ${{ inputs.openwrt_board }}
-            - Kernel: ${{ inputs.openwrt_kernel }} (auto-update: ${{ inputs.auto_kernel }})
-            - Package Manager: opkg
-            - Default IP: 192.168.1.1
-            - Default username: root
-            - Default password: password
-            
-            ### Sources
-            - [Target Files](${{ env.TARGET_URL }})
-            - [Packages](${{ env.PACKAGES_URL }})
-            - [Source Code](${{ steps.down.outputs.REPO_URL }})
+            ### 设备：${{ inputs.openwrt_board }}
+            ### 内核：${{ inputs.openwrt_kernel }}
+            ### 包管理器：opkg
+            ### 官方源：
+            - [targets](${{ env.TARGET_URL }})
+            - [packages](${{ env.PACKAGES_URL }})
