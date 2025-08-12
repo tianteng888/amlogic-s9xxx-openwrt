@@ -215,47 +215,63 @@ jobs:
           mkdir -p openwrt/kernel
           echo "从官方仓库获取内核: ${{ inputs.kernel_repo }}"
           
-          # 获取内核版本信息
-          if [[ "${{ inputs.auto_kernel }}" == "true" ]]; then
-            # 自动获取最新内核
-            latest_kernel=$(curl -s \
-                  -H "Accept: application/vnd.github+json" \
-                  -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                  https://api.github.com/repos/${{ inputs.kernel_repo }}/releases?per_page=100 | \
-                  jq -r --arg KERNEL "${{ inputs.openwrt_kernel }}" \
-                  '[.[] | select(.tag_name | contains($KERNEL))] |
-                  sort_by(.published_at) |
-                  reverse |
-                  .[0].tag_name')
+          # 拆分内核版本（支持组合版本，如5.15.y_6.1.y）
+          KERNEL_VERSIONS=$(echo "${{ inputs.openwrt_kernel }}" | tr '_' ' ')
+          ALL_KERNEL_TAGS=""
+          
+          # 遍历每个内核版本
+          for version in $KERNEL_VERSIONS; do
+            echo "处理内核版本: $version"
             
-            if [[ -z "${latest_kernel}" || "${latest_kernel}" == "null" ]]; then
-              echo "无法获取最新内核版本，使用默认值"
-              latest_kernel="${{ inputs.openwrt_kernel }}"
+            # 获取该版本的最新内核标签
+            if [[ "${{ inputs.auto_kernel }}" == "true" ]]; then
+              latest_kernel=$(curl -s \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                    https://api.github.com/repos/${{ inputs.kernel_repo }}/releases?per_page=100 | \
+                    jq -r --arg KERNEL "$version" \
+                    '[.[] | select(.tag_name | contains($KERNEL))] |
+                    sort_by(.published_at) |
+                    reverse |
+                    .[0].tag_name')
+              
+              if [[ -z "${latest_kernel}" || "${latest_kernel}" == "null" ]]; then
+                echo "无法获取最新内核版本 $version，使用默认值"
+                latest_kernel="$version"
+              fi
+              KERNEL_TAG="${latest_kernel}"
+            else
+              KERNEL_TAG="$version"
             fi
-            KERNEL_TAG="${latest_kernel}"
-          else
-            KERNEL_TAG="${{ inputs.openwrt_kernel }}"
-          fi
+            
+            # 记录所有内核标签
+            ALL_KERNEL_TAGS="${ALL_KERNEL_TAGS} ${KERNEL_TAG}"
+            
+            echo "使用内核版本: $KERNEL_TAG"
+            KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
+            echo "下载内核: ${KERNEL_URL}"
+            
+            # 下载内核（保存到独立文件，避免覆盖）
+            if ! sudo wget -c "${KERNEL_URL}" -O "openwrt/kernel/${KERNEL_TAG}.tar.gz"; then
+              echo "错误：内核 $KERNEL_TAG 下载失败"
+              exit 1
+            fi
+            
+            # 验证文件存在性
+            if [ ! -f "openwrt/kernel/${KERNEL_TAG}.tar.gz" ]; then
+              echo "错误：内核文件 $KERNEL_TAG 不存在"
+              exit 1
+            fi
+            
+            # 解压到独立目录
+            sudo mkdir -p "openwrt/kernel/${KERNEL_TAG}"
+            sudo tar -zxf "openwrt/kernel/${KERNEL_TAG}.tar.gz" -C "openwrt/kernel/${KERNEL_TAG}"
+          done
           
-          echo "使用内核版本: $KERNEL_TAG"
-          KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
-          echo "下载内核: ${KERNEL_URL}"
-          
-          if ! sudo wget -c "${KERNEL_URL}" -O openwrt/kernel/kernel.tar.gz; then
-            echo "错误：内核下载失败"
-            exit 1
-          fi
-          
-          # 验证内核文件
-          if [ ! -f "openwrt/kernel/kernel.tar.gz" ]; then
-            echo "错误：内核文件不存在"
-            exit 1
-          fi
-          
-          # 解压内核
-          sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
+          # 输出所有内核标签（去除首尾空格）
+          ALL_KERNEL_TAGS=$(echo "${ALL_KERNEL_TAGS}" | xargs)
           echo "status=success" >> ${GITHUB_OUTPUT}
-          echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
+          echo "kernel_tags=${ALL_KERNEL_TAGS}" >> ${GITHUB_OUTPUT}
 
       - name: 配置opkg源（适配官方架构路径）
         if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.download_kernel.outputs.status == 'success' }}
@@ -336,7 +352,7 @@ jobs:
         with:
           openwrt_path: /builder/openwrt/rootfs
           openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tag }}
+          openwrt_kernel: ${{ steps.download_kernel.outputs.kernel_tags }}
           kernel_repo: ${{ inputs.kernel_repo }}
           target_arch: ${{ env.TARGET_ARCH }}
           debug: false
@@ -344,6 +360,6 @@ jobs:
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.download_kernel.outputs.kernel_tag }}
+          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.download_kernel.outputs.kernel_tags }}
           path: ${{ env.PACKAGED_OUTPUTPATH }}/*
           retention-days: 30
