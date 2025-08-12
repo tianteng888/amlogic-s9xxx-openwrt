@@ -21,19 +21,19 @@ on:
       openwrt_kernel:
         description: "内核版本"
         required: true
-        default: "5.15.y_6.1.y"
+        default: "5.15_6.12"  # 修正为不含.y后缀的主版本标识
         type: choice
-          - 5.4.y
-          - 5.10.y
-          - 5.15.y
-          - 6.1.y
-          - 6.6.y
-          - 6.12.y
-          - 5.4.y_5.10.y
-          - 5.15.y_6.1.y
-          - 6.1.y_6.12.y
-          - 6.1.y_6.6.y
-          - 6.6.y_6.12.y
+          - 5.4
+          - 5.10
+          - 5.15
+          - 6.1
+          - 6.6
+          - 6.12
+          - 5.4_5.10
+          - 5.15_6.1
+          - 6.1_6.12
+          - 6.1_6.6
+          - 6.6_6.12
       auto_kernel:
         description: "自动使用最新内核"
         required: false
@@ -215,40 +215,43 @@ jobs:
           mkdir -p openwrt/kernel
           echo "从官方仓库获取内核: ${{ inputs.kernel_repo }}"
           
-          # 拆分内核版本（支持组合版本，如5.15.y_6.1.y）
+          # 拆分内核版本（支持组合版本，如5.15_6.12）
           KERNEL_VERSIONS=$(echo "${{ inputs.openwrt_kernel }}" | tr '_' ' ')
           ALL_KERNEL_TAGS=""
           
-          # 遍历每个内核版本
-          for version in $KERNEL_VERSIONS; do
-            echo "处理内核版本: $version"
+          # 遍历每个内核主版本
+          for main_version in $KERNEL_VERSIONS; do
+            echo "处理内核主版本: $main_version"
             
-            # 获取该版本的最新内核标签
+            # 获取该主版本的最新内核文件（从资产中筛选）
             if [[ "${{ inputs.auto_kernel }}" == "true" ]]; then
+              # 从所有发布中获取包含该主版本的资产文件
               latest_kernel=$(curl -s \
                     -H "Accept: application/vnd.github+json" \
                     -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                     https://api.github.com/repos/${{ inputs.kernel_repo }}/releases?per_page=100 | \
-                    jq -r --arg KERNEL "$version" \
-                    '[.[] | select(.tag_name | contains($KERNEL))] |
-                    sort_by(.published_at) |
-                    reverse |
-                    .[0].tag_name')
+                    jq -r --arg VER "$main_version" '
+                      .[] | .assets[] | 
+                      select(.name | startswith($VER) and endswith(".tar.gz")) |
+                      {name: .name, updated_at: .updated_at} |
+                      sort_by(.updated_at) | reverse | .[0].name' |
+                    sort -V | tail -n 1 | sed 's/\.tar\.gz$//')
               
               if [[ -z "${latest_kernel}" || "${latest_kernel}" == "null" ]]; then
-                echo "无法获取最新内核版本 $version，使用默认值"
-                latest_kernel="$version"
+                echo "无法获取最新内核版本 $main_version，使用用户指定版本"
+                latest_kernel="${main_version}.41"  #  fallback到已知版本
               fi
               KERNEL_TAG="${latest_kernel}"
             else
-              KERNEL_TAG="$version"
+              # 手动模式：使用用户指定的具体版本（如6.12.41）
+              KERNEL_TAG="${{ inputs.openwrt_kernel }}"
             fi
             
             # 记录所有内核标签
             ALL_KERNEL_TAGS="${ALL_KERNEL_TAGS} ${KERNEL_TAG}"
             
             echo "使用内核版本: $KERNEL_TAG"
-            KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
+            KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/kernel_stable/${KERNEL_TAG}.tar.gz"
             echo "下载内核: ${KERNEL_URL}"
             
             # 下载内核（保存到独立文件，避免覆盖）
