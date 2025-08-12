@@ -1,500 +1,214 @@
 #=====================================================================================
-# 适配s905l3a (aarch64_generic)架构的OpenWrt构建工作流
-# 架构说明：s905l3a属于ARMv8-A架构，对应aarch64_generic目标平台
+# https://github.com/ophub/amlogic-s9xxx-openwrt
+# Description: Build OpenWrt using ImmortalWrt 24.10.2 with opkg
 #=====================================================================================
 
-name: Build OpenWrt for s905l3a (aarch64_generic)
+name: Build ImmortalWrt with opkg
 
 on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
+      source_branch:
+        description: "Select the source branch"
+        required: false
+        default: "immortalwrt"
+        type: choice
+        options:
+          - immortalwrt
       openwrt_board:
-        description: "设备型号"
-        required: true
-        default: "s905l3a"
+        description: "Select device board"
+        required: false
+        default: "s905l3a"  # 指定s905l3a设备
         type: choice
         options:
           - s905l3a
           - s905l3a-cm311
           - s905l3a-m401a
+          - other  # 保留其他设备选项
       openwrt_kernel:
-        description: "内核版本（官方最新）"
-        required: true
-        default: "latest"
+        description: "Select kernel version (latest recommended)"
+        required: false
+        default: "6.12.y"  # 最新内核版本
         type: choice
         options:
-          - latest  # 最新内核
-          - 5.15.y
-          - 6.1.y
-          - 6.6.y
           - 6.12.y
-      kernel_source:
-        description: "选择内核源码"
+          - 6.6.y
+          - 6.1.y
+      auto_kernel:
+        description: "Auto use the latest kernel"
         required: false
-        default: "unifreq"
-        type: choice
-        options:
-          - unifreq
-          - codesnas
-      kernel_toolchain:
-        description: "选择编译工具链"
-        required: false
-        default: "gcc"
-        type: choice
-        options:
-          - clang
-          - gcc
-          - gcc-14.2
+        default: true  # 自动使用最新内核
+        type: boolean
       kernel_repo:
-        description: "内核仓库（官方）"
-        required: true
+        description: "Set the kernel repository"
+        required: false
         default: "ophub/kernel"
         type: choice
         options:
-          - ophub/kernel  # 官方内核源
+          - ophub/kernel
+      kernel_usage:
+        description: "Set the tags of the stable kernel."
+        required: false
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - dev
+      openwrt_storage:
+        description: "Select image storage type."
+        required: false
+        default: "save"
+        type: choice
+        options:
+          - save
+          - temp
+      builder_name:
+        description: "Set OpenWrt builder signature."
+        required: false
+        default: "ophub"
+        type: choice
+        options:
+          - ophub
+          - angel
+          - yourname
 
 env:
-  TZ: Asia/Shanghai
-  # 核心配置：使用官方immortalwrt的rootfs（匹配targets路径）
-  ROOTFS_URL: "https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/immortalwrt-24.10.2-armsr-armv8-rootfs.tar.gz"
-  TARGET_ARCH: "aarch64_generic"
-  # 关键修正：应用包仓库路径为aarch64_generic（与确认的路径一致）
-  PACKAGE_REPO_BASE: "https://downloads.immortalwrt.org/releases/24.10.2/packages/aarch64_generic"
+  TZ: America/New_York
+  IMMORTALWRT_VERSION: "24.10.2"
+  TARGET_URL: "https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/targets/armsr/armv8/"
+  PACKAGES_URL: "https://downloads.immortalwrt.org/releases/${{ env.IMMORTALWRT_VERSION }}/packages/aarch64_generic/"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
+    if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+
     steps:
-      - name: 检查代码仓库
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 初始化构建环境
+      - name: Initialization environment
+        id: init
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          # 安装基础工具
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            curl wget tar gzip xz-utils unzip build-essential \
-            qemu-user-static binfmt-support pv lvm2 xfsprogs \
-            net-tools iputils-ping jq
+          # 清理环境
+          docker rmi $(docker images -q) 2>/dev/null
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
+          sudo swapoff -a
+          sudo rm -f /swapfile /mnt/swapfile
           
-          # 启用aarch64架构模拟
-          sudo update-binfmts --enable qemu-aarch64
-          sudo systemctl daemon-reload
+          # 安装必要工具
+          sudo -E apt-get -y update
+          sudo -E apt-get -y install curl wget tar gzip bzip2 xz-utils file binutils \
+            build-essential libncurses5-dev libncursesw5-dev zlib1g-dev flex bison \
+            pkg-config perl python3 python3-pip rsync unzip
           
-          # 验证qemu配置
-          if ! which qemu-aarch64-static; then
-            echo "错误：未找到qemu-aarch64-static"
-            exit 1
-          fi
+          # 配置opkg（直接使用ImmortalWrt的opkg工具）
+          wget ${{ env.PACKAGES_URL }}/opkg_*.ipk -O /tmp/opkg.ipk
+          ar x /tmp/opkg.ipk data.tar.xz
+          sudo tar -xJf data.tar.xz -C /
+          sudo chmod +x /usr/bin/opkg
           
-          # 设置时区
-          sudo timedatectl set-timezone "${TZ}"
-
-      - name: 创建并挂载虚拟磁盘
-        run: |
-          # 计算可用空间（保留1G余量）
-          mnt_size=$(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
-          root_size=$(df -h / | tail -1 | awk '{print $4}' | sed 's/[^0-9]//g')
-          mnt_size=$(( mnt_size > 0 ? mnt_size - 1 : 10 ))  # 至少10G
-          root_size=$(( root_size > 0 ? root_size - 4 : 20 ))  # 至少20G
-          
-          # 创建磁盘镜像
-          sudo truncate -s "${mnt_size}"G /mnt/mnt.img
-          sudo truncate -s "${root_size}"G /root.img
-          
-          # 关联到loop设备
-          sudo losetup /dev/loop6 /mnt/mnt.img
-          sudo losetup /dev/loop7 /root.img
-          
-          # 创建LVM逻辑卷
-          sudo pvcreate /dev/loop6 /dev/loop7
-          sudo vgcreate github /dev/loop6 /dev/loop7
-          sudo lvcreate -n runner -l 100%FREE github
-          
-          # 格式化XFS文件系统
-          sudo mkfs.xfs -f -i size=512 /dev/github/runner
-          
-          # 挂载到工作目录
-          sudo mkdir -p /builder
-          sudo mount -o defaults /dev/github/runner /builder
-          sudo chmod 777 /builder  # 确保权限可写
-
-      - name: 下载并验证rootfs
-        id: download_rootfs
-        working-directory: /builder
-        run: |
-          # 创建工作目录
-          mkdir -p openwrt/rootfs
-          
-          # 下载rootfs
-          echo "开始下载rootfs: ${ROOTFS_URL}"
-          if ! sudo wget -c "${ROOTFS_URL}" -O openwrt/rootfs.tar.gz; then
-            echo "错误：rootfs下载失败"
-            exit 1
-          fi
-          
-          # 验证文件存在
-          if [ ! -f "openwrt/rootfs.tar.gz" ]; then
-            echo "错误：rootfs文件不存在"
-            exit 1
-          fi
-          
-          # 解压rootfs
-          echo "解压rootfs..."
-          sudo tar -zxf openwrt/rootfs.tar.gz -C openwrt/rootfs
-          
-          # 处理可能的嵌套目录
-          rootfs_contents=$(ls openwrt/rootfs)
-          if [ $(echo "$rootfs_contents" | wc -l) -eq 1 ] && [ -d "openwrt/rootfs/$rootfs_contents" ]; then
-            sudo mv openwrt/rootfs/$rootfs_contents/* openwrt/rootfs/
-            sudo rmdir openwrt/rootfs/$rootfs_contents
-          fi
-          
-          # 提前创建必要系统目录
-          sudo mkdir -p openwrt/rootfs/var/lock
-          sudo chmod -R 777 openwrt/rootfs/var
-          
-          # 配置DNS（解决网络问题）
-          if [ -L "openwrt/rootfs/etc/resolv.conf" ]; then
-            sudo rm -f openwrt/rootfs/etc/resolv.conf
-          fi
-          sudo cp /etc/resolv.conf openwrt/rootfs/etc/resolv.conf
-          sudo chmod 777 openwrt/rootfs/etc/resolv.conf
-          
-          # 验证opkg是否存在
-          OPKG_PATH=$(sudo find openwrt/rootfs -name "opkg" | grep -E "/usr/bin/opkg|/bin/opkg" | head -n 1)
-          if [ -z "$OPKG_PATH" ]; then
-            echo "错误：未找到opkg工具"
-            sudo ls -la openwrt/rootfs/usr/bin
-            sudo ls -la openwrt/rootfs/bin
-            exit 1
-          fi
-          sudo chmod +x "$OPKG_PATH"
-          
-          echo "opkg_path=$OPKG_PATH" >> ${GITHUB_OUTPUT}
-          echo "status=success" >> ${GITHUB_OUTPUT}
-
-      - name: 检测rootfs中的晶晨宝盒和自带驱动
-        id: check_rootfs
-        if: ${{ steps.download_rootfs.outputs.status }} == 'success'
-        run: |
-          ROOTFS_DIR="/builder/openwrt/rootfs"
-          echo "===== 检测rootfs中的晶晨宝盒 ====="
-          
-          # 晶晨宝盒核心文件列表
-          amlogic_files=(
-            "/usr/sbin/amlogic-service"
-            "/etc/config/amlogic"
-            "/usr/bin/openwrt-install-amlogic"
-          )
-          amlogic_exists=true
-          for file in "${amlogic_files[@]}"; do
-            if [ ! -f "${ROOTFS_DIR}${file}" ] && [ ! -d "${ROOTFS_DIR}${file}" ]; then
-              echo "缺失晶晨宝盒组件: ${file}"
-              amlogic_exists=false
-            fi
-          done
-          
-          echo -e "\n===== 检测rootfs中自带的USB驱动 ====="
-          # 核心USB驱动文件
-          driver_files=(
-            "/lib/modules/*/kernel/drivers/usb/net/kmod-usb-net.ko"
-            "/lib/modules/*/kernel/drivers/usb/core/kmod-usb2.ko"
-            "/lib/modules/*/kernel/drivers/usb/core/kmod-usb3.ko"
-          )
-          driver_exists=true
-          for pattern in "${driver_files[@]}"; do
-            if ! ls "${ROOTFS_DIR}${pattern}" 1>/dev/null 2>&1; then
-              echo "缺失自带驱动: ${pattern}"
-              driver_exists=false
-            fi
-          done
-          
-          # 输出检测结果
-          if [ "$amlogic_exists" = true ] && [ "$driver_exists" = true ]; then
-            echo "rootfs检测通过：包含晶晨宝盒和必要驱动"
-            echo "rootfs_status=success" >> ${GITHUB_OUTPUT}
-          else
-            echo "rootfs检测警告：缺失部分组件（将尝试后续安装）"
-            echo "rootfs_status=partial" >> ${GITHUB_OUTPUT}
-          fi
-
-      - name: 尝试下载官方内核文件
-        id: download_kernel
-        working-directory: /builder
-        continue-on-error: true
-        run: |
-          mkdir -p openwrt/kernel
-          echo "从官方仓库获取最新内核: ${{ inputs.kernel_repo }}"
-          
-          # 从官方内核仓库动态获取最新内核（不限制版本）
-          KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases/latest" | jq -r '.tag_name')
-          if [ -z "$KERNEL_TAG" ] || [ "$KERNEL_TAG" = "null" ]; then
-            # 如果latest获取失败，从所有发布中取最新的第一个
-            KERNEL_TAG=$(curl -s "https://api.github.com/repos/${{ inputs.kernel_repo }}/releases" | jq -r '.[] | .tag_name' | head -n 1)
-          fi
-          
-          # 过滤掉非版本标签（如tools）
-          if [[ "$KERNEL_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
-            echo "找到有效内核版本: $KERNEL_TAG"
-          else
-            echo "获取的标签不是有效内核版本: $KERNEL_TAG"
-            exit 1
-          fi
-          
-          KERNEL_URL="https://github.com/${{ inputs.kernel_repo }}/releases/download/${KERNEL_TAG}/${KERNEL_TAG}.tar.gz"
-          echo "下载官方最新内核: ${KERNEL_URL}"
-          
-          if ! sudo wget -c "${KERNEL_URL}" -O openwrt/kernel/kernel.tar.gz; then
-            echo "错误：官方内核下载失败"
-            exit 1
-          fi
-          
-          # 验证内核文件
-          if [ ! -f "openwrt/kernel/kernel.tar.gz" ]; then
-            echo "错误：内核文件不存在"
-            exit 1
-          fi
-          
-          # 解压内核
-          sudo tar -zxf openwrt/kernel/kernel.tar.gz -C openwrt/kernel
-          echo "status=success" >> ${GITHUB_OUTPUT}
-          echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
-
-      - name: 准备内核编译环境
-        id: prepare_compile
-        if: ${{ steps.download_kernel.outputs.status != 'success' }}
-        run: |
-          echo "官方内核下载失败，准备编译内核..."
-          # 安装内核编译依赖
-          sudo apt-get update -y
-          sudo apt-get install -y $(curl -fsSL https://tinyurl.com/ubuntu2204-build-armbian)
-          sudo systemctl daemon-reload
-          # 创建编译目录
-          mkdir -p /builder/kernel /builder/kernel_output
-          # 设置内核版本（如果用户指定了版本）
-          if [ "${{ inputs.openwrt_kernel }}" != "latest" ]; then
-            echo "指定内核版本: ${{ inputs.openwrt_kernel }}"
-            echo "kernel_version=${{ inputs.openwrt_kernel }}" >> ${GITHUB_OUTPUT}
-          else
-            echo "使用默认内核版本: 6.12.y"
-            echo "kernel_version=6.12.y" >> ${GITHUB_OUTPUT}
-          fi
-          echo "status=success" >> ${GITHUB_OUTPUT}
-
-      - name: 编译内核
-        id: compile_kernel
-        if: ${{ steps.prepare_compile.outputs.status == 'success' }}
-        uses: ophub/amlogic-s9xxx-armbian@main
-        with:
-          build_target: kernel
-          kernel_source: ${{ inputs.kernel_source }}
-          kernel_version: ${{ steps.prepare_compile.outputs.kernel_version }}
-          kernel_auto: true
-          delete_source: true
-          kernel_package: all
-          kernel_sign: -ophub
-          kernel_toolchain: ${{ inputs.kernel_toolchain }}
-          compress_format: xz
-          silent_log: false
-
-      - name: 处理编译好的内核
-        id: handle_compiled_kernel
-        if: ${{ steps.compile_kernel.outputs.status == 'success' }}
-        working-directory: /builder
-        run: |
-          echo "内核编译成功，处理内核文件..."
-          # 复制编译好的内核到工作目录
-          mkdir -p openwrt/kernel
-          cp -r ${{ env.PACKAGED_OUTPUTPATH }}/* openwrt/kernel/
-          # 获取编译的内核版本
-          KERNEL_TAG=$(ls openwrt/kernel/*.tar.gz | head -n 1 | xargs basename | sed 's/\.tar\.gz//')
-          echo "编译的内核版本: $KERNEL_TAG"
-          echo "status=success" >> ${GITHUB_OUTPUT}
-          echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
-
-      - name: 检测内核中的驱动支持
-        id: check_kernel
-        run: |
-          # 确定内核目录
-          if [ "${{ steps.download_kernel.outputs.status }}" = "success" ]; then
-            KERNEL_DIR="/builder/openwrt/kernel"
-            KERNEL_TAG="${{ steps.download_kernel.outputs.kernel_tag }}"
-          else
-            KERNEL_DIR="/builder/openwrt/kernel"
-            KERNEL_TAG="${{ steps.handle_compiled_kernel.outputs.kernel_tag }}"
-          fi
-          
-          echo "===== 检测内核中的驱动支持 ====="
-          echo "当前使用的内核版本: $KERNEL_TAG"
-          
-          # 检查内核模块中的USB驱动
-          kernel_drivers=(
-            "usb-net.ko"
-            "usb2.ko"
-            "usb3.ko"
-            "xhci-hcd.ko"
-          )
-          kernel_support=true
-          for driver in "${kernel_drivers[@]}"; do
-            if ! find "${KERNEL_DIR}" -name "*${driver}" 1>/dev/null 2>&1; then
-              echo "内核缺失驱动: ${driver}"
-              kernel_support=false
-            fi
-          done
-          
-          if [ "$kernel_support" = true ]; then
-            echo "内核检测通过：包含必要驱动"
-            echo "kernel_status=success" >> ${GITHUB_OUTPUT}
-            echo "kernel_tag=${KERNEL_TAG}" >> ${GITHUB_OUTPUT}
-          else
-            echo "错误：内核缺失关键驱动，无法继续"
-            echo "kernel_status=failure" >> ${GITHUB_OUTPUT}
-            exit 1
-          fi
-
-      - name: 配置opkg源（适配官方架构路径）
-        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
-        run: |
-          OPKG_CONF="/builder/openwrt/rootfs/etc/opkg/distfeeds.conf"
-          sudo mkdir -p $(dirname $OPKG_CONF)
-          
-          # 修正为官方正确的包仓库路径
-          sudo tee $OPKG_CONF << EOF
-          # 系统核心包（对应targets路径）
-          src/gz immortalwrt_core https://downloads.immortalwrt.org/releases/24.10.2/targets/armsr/armv8/packages
-          # 应用包（对应aarch64_generic路径）
-          src/gz immortalwrt_base ${PACKAGE_REPO_BASE}/base
-          src/gz immortalwrt_luci ${PACKAGE_REPO_BASE}/luci
-          src/gz immortalwrt_packages ${PACKAGE_REPO_BASE}/packages
-          src/gz immortalwrt_routing ${PACKAGE_REPO_BASE}/routing
-          src/gz immortalwrt_telephony ${PACKAGE_REPO_BASE}/telephony
+          # 配置opkg源
+          sudo mkdir -p /etc/opkg
+          cat << EOF | sudo tee /etc/opkg/distfeeds.conf
+          src/gz immortalwrt_core ${{ env.TARGET_URL }}/packages
+          src/gz immortalwrt_base ${{ env.PACKAGES_URL }}/base
+          src/gz immortalwrt_luci ${{ env.PACKAGES_URL }}/luci
+          src/gz immortalwrt_packages ${{ env.PACKAGES_URL }}/packages
+          src/gz immortalwrt_routing ${{ env.PACKAGES_URL }}/routing
+          src/gz immortalwrt_telephony ${{ env.PACKAGES_URL }}/telephony
           EOF
           
-          # 验证源配置
-          echo "已配置的opkg源："
-          cat $OPKG_CONF
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+          sudo timedatectl set-timezone "${TZ}"
+          echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: 安装USB网卡驱动（适配官方内核）
-        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
+      - name: Create simulated physical disk
         run: |
-          ROOTFS_DIR="/builder/openwrt/rootfs"
-          
-          # 挂载必要的系统目录
-          sudo mount -o bind /dev $ROOTFS_DIR/dev
-          sudo mount -o bind /dev/pts $ROOTFS_DIR/dev/pts
-          sudo mount -o bind /proc $ROOTFS_DIR/proc
-          sudo mount -o bind /sys $ROOTFS_DIR/sys
-          sudo mount -o bind /etc/resolv.conf $ROOTFS_DIR/etc/resolv.conf
-          
-          # 复制qemu模拟器
-          sudo cp /usr/bin/qemu-aarch64-static $ROOTFS_DIR/usr/bin/
-          sudo chmod +x $ROOTFS_DIR/usr/bin/qemu-aarch64-static
-          
-          # 增强网络诊断与修复
-          echo "===== 网络连通性修复 ====="
-          # 强制替换DNS配置
-          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
-          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 114.114.114.114' >> /etc/resolv.conf"
-          sudo chroot $ROOTFS_DIR /bin/sh -c "echo 'nameserver 208.67.222.222' >> /etc/resolv.conf"  # 增加备用DNS
-          
-          # 检查网络接口与路由
-          echo "网络接口状态："
-          sudo chroot $ROOTFS_DIR /bin/sh -c "ip addr"
-          echo "路由配置："
-          sudo chroot $ROOTFS_DIR /bin/sh -c "ip route"
-          sudo chroot $ROOTFS_DIR /bin/sh -c "ip link set lo up"  # 确保回环接口启用
-          
-          # 多目标网络测试（先IP后域名，支持ping和curl）
-          test_connectivity() {
-            local target=$1
-            echo "测试连接 $target..."
-            if sudo chroot $ROOTFS_DIR /bin/sh -c "ping -c 2 $target >/dev/null 2>&1"; then
-              return 0
-            elif sudo chroot $ROOTFS_DIR /bin/sh -c "curl -Is --connect-timeout 5 $target >/dev/null 2>&1"; then
-              return 0
-            else
-              return 1
-            fi
-          }
-          
-          # 测试序列：先DNS服务器，再官方源
-          targets=("8.8.8.8" "114.114.114.114" "downloads.immortalwrt.org" "https://downloads.immortalwrt.org")
-          connectivity_ok=false
-          for target in "${targets[@]}"; do
-            if test_connectivity "$target"; then
-              echo "$target 连接成功"
-              connectivity_ok=true
-              break
-            fi
-          done
-          
-          if [ "$connectivity_ok" = false ]; then
-            echo "错误：所有网络测试失败，无法访问外部网络"
-            exit 1
-          fi
-          
-          # 确保锁文件目录权限
-          sudo chroot $ROOTFS_DIR /bin/sh -c "mkdir -p /var/lock && chmod 777 /var/lock"
-          
-          # 更新包列表（带重试机制）
-          echo "更新opkg包列表..."
-          retry=3
-          while [ $retry -gt 0 ]; do
-            if sudo chroot $ROOTFS_DIR /bin/sh -c "opkg update --no-check-certificate"; then
-              break
-            fi
-            retry=$((retry - 1))
-            echo "opkg update失败，剩余重试次数：$retry"
-            sleep 5
-          done
-          if [ $retry -eq 0 ]; then
-            echo "错误：opkg update最终失败"
-            echo "当前opkg源配置："
-            sudo cat $ROOTFS_DIR/etc/opkg/distfeeds.conf
-            exit 1
-          fi
-          
-          # 仅在rootfs检测不完整时安装驱动
-          if [ "${{ steps.check_rootfs.outputs.rootfs_status }}" = "partial" ]; then
-            echo "安装USB网卡驱动（补充缺失组件）..."
-            sudo chroot $ROOTFS_DIR /bin/sh -c "opkg install --no-check-certificate \
-              kmod-usb-net \
-              kmod-usb-net-rtl8152 \
-              kmod-usb-net-asix \
-              kmod-usb-net-asix-ax88179 \
-              kmod-usb2 \
-              kmod-usb3 \
-              kmod-usb-xhci-hcd" || echo "部分驱动可能已内置，继续执行"
-          else
-            echo "rootfs已包含必要驱动，跳过安装"
-          fi
-          
-          # 清理挂载点
-          sudo umount $ROOTFS_DIR/etc/resolv.conf
-          sudo umount $ROOTFS_DIR/dev/pts
-          sudo umount $ROOTFS_DIR/dev
-          sudo umount $ROOTFS_DIR/proc
-          sudo umount $ROOTFS_DIR/sys
-          sudo rm -f $ROOTFS_DIR/usr/bin/qemu-aarch64-static
+          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
+          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+          sudo truncate -s "${mnt_size}"G /mnt/mnt.img
+          sudo truncate -s "${root_size}"G /root.img
+          sudo losetup /dev/loop6 /mnt/mnt.img
+          sudo losetup /dev/loop7 /root.img
+          sudo pvcreate /dev/loop6
+          sudo pvcreate /dev/loop7
+          sudo vgcreate github /dev/loop6 /dev/loop7
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.xfs /dev/github/runner
+          sudo mkdir -p /builder
+          sudo mount /dev/github/runner /builder
+          sudo chown -R runner.runner /builder
+          df -Th
 
-      - name: 打包OpenWrt镜像（使用官方工具链）
-        if: ${{ steps.check_rootfs.outputs.rootfs_status != 'failure' && steps.check_kernel.outputs.kernel_status == 'success' }}
+      - name: Download ImmortalWrt 24.10.2
+        id: down
+        working-directory: /builder
+        if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
+        run: |
+          # 固定使用ImmortalWrt 24.10.2源码
+          REPO_URL="https://github.com/immortalwrt/immortalwrt"
+          REPO_BRANCH="v${{ env.IMMORTALWRT_VERSION }}"
+          TAGS_NAME="immortalwrt-${{ env.IMMORTALWRT_VERSION }}"
+
+          armsr_tarfile_path="openwrt/output"
+          [[ -d "${armsr_tarfile_path}" ]] || mkdir -p ${armsr_tarfile_path}
+          ln -sf /builder/openwrt ${GITHUB_WORKSPACE}/openwrt
+          ln -sf /builder/openwrt /home/runner/work/_actions/ophub/amlogic-s9xxx-openwrt/main/openwrt
+
+          # 从官方源下载rootfs
+          rootfs_file=$(curl -s ${{ env.TARGET_URL }} | grep -oE 'openwrt-.*-s905l3a-.*-rootfs.tar.gz' | head -n 1)
+          if [[ -z "${rootfs_file}" ]]; then
+              echo "Failed to find rootfs file"
+              exit 1
+          fi
+          wget ${{ env.TARGET_URL }}/${rootfs_file} -O "${armsr_tarfile_path}/${rootfs_file}"
+          [[ "${?}" -ne "0" ]] && echo "Failed to download rootfs" && exit 1
+
+          echo "build_tag=ImmortalWrt_${{ env.IMMORTALWRT_VERSION }}_s905l3a_$(date +"%Y.%m")" >> ${GITHUB_OUTPUT}
+          echo "REPO_URL=${REPO_URL}" >> ${GITHUB_OUTPUT}
+          echo "TAGS_NAME=${TAGS_NAME}" >> ${GITHUB_OUTPUT}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Packaging OpenWrt with opkg
+        if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
         uses: ophub/amlogic-s9xxx-openwrt@main
         with:
-          openwrt_path: /builder/openwrt/rootfs
+          openwrt_path: openwrt/output/*rootfs.tar.gz
           openwrt_board: ${{ inputs.openwrt_board }}
-          openwrt_kernel: ${{ steps.check_kernel.outputs.kernel_tag }}  # 使用实际内核版本
+          openwrt_kernel: ${{ inputs.openwrt_kernel }}
+          auto_kernel: ${{ inputs.auto_kernel }}
           kernel_repo: ${{ inputs.kernel_repo }}
-          target_arch: ${{ env.TARGET_ARCH }}
-          debug: false
+          kernel_usage: ${{ inputs.kernel_usage }}
+          builder_name: ${{ inputs.builder_name }}
+          # 额外添加opkg配置参数
+          extra_packages: "opkg wget curl"
 
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+      - name: Upload the packaged OpenWrt
+        uses: ncipollo/release-action@main
+        if: ${{ env.PACKAGED_STATUS }} == 'success' && !cancelled()
         with:
-          name: openwrt-s905l3a-${{ env.TARGET_ARCH }}-kernel-${{ steps.check_kernel.outputs.kernel_tag }}
-          path: ${{ env.PACKAGED_OUTPUTPATH }}/*
-          retention-days: 30
+          tag: ${{ steps.down.outputs.build_tag }}
+          artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
+          allowUpdates: true
+          removeArtifacts: false
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            ### ImmortalWrt 24.10.2 Image Information
+            - Device: ${{ inputs.openwrt_board }}
+            - Kernel: ${{ inputs.openwrt_kernel }} (auto-update: ${{ inputs.auto_kernel }})
+            - Package Manager: opkg
+            - Default IP: 192.168.1.1
+            - Default username: root
+            - Default password: password
+            
+            ### Sources
+            - [Target Files](${{ env.TARGET_URL }})
+            - [Packages](${{ env.PACKAGES_URL }})
+            - [Source Code](${{ steps.down.outputs.REPO_URL }})
